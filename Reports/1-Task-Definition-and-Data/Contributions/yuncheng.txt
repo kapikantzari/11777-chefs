@@ -1,0 +1,7 @@
+R1:
+
+- Download parts of dataset and annotations
+- Write codes for text analysis in text-analysis.ipynb (word frequency, overlapping narrations, number of actions per video)
+- Visualize text feature embeddings using pre-trained GloVe word vectors
+- Revise functions to compute and visualize video length and video length vs. number of actions for both training and validation set
+- Formalize the task definition based on group discussion and write the text analysis section
