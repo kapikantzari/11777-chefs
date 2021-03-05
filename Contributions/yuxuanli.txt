@@ -1,0 +1,5 @@
+R1:
+	- Write scripts for downloading necessary components of the dataset
+	- Write codes for text analysis section, including verb&noun frequency, OOV, sentence length, label analysis and plotting figures used in the report
+	- Write codes for frame analysis section, preprocessed training and validation set to generate frame & time information of all actions & objects
+	- Write the task definition, text analysis section & appendix A for data analysis of the first report 
