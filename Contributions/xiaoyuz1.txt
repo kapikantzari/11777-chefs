@@ -1,0 +1,6 @@
+R1:
+- Download parts of dataset and annotations
+- Write codes for hand_object_bbox_analysis.ipynb
+- Write code for extracting video features, but cannot run across all datasets because we cannot untar all frames, but will run later and include the results
+- Visualize hand and object bounding box graphs, graphs for average frame number analysis across verb classes
+- Write the Video Frame Analysis section in the report 
