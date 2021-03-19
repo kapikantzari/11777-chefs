@@ -1,4 +1,4 @@
 R2:
 
-- Read about different methods in action segmentation (7 papers in total)
-- Write the section of Action segmentation, Early works, and graph convolution networks in the report
+- Read about MSTCN and MSTCN++ and write corresponding section in the report
+- Contribute ideas to the discussion of baseline models and proposed method (in particular, how to incorporate textual input)
