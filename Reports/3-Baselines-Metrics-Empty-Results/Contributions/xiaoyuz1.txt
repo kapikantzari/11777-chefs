@@ -1,5 +1,5 @@
 R2:
 
-- Read papers on Image-Text matching and GCN used in action segmentation
-- Write the Image-Text matching
-- Discussed areas for background search with group member
+- Discuss potential baselines to use
+- Read EDTCN MSTCN paper
+- Write Metrics and EDTCN section
