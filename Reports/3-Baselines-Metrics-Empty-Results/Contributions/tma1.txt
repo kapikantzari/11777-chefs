@@ -1,7 +1,7 @@
-R2:
+R3:
 
--Read papers about GCN and unsupervised approaches in text alignment
+-Read papers about Weakly Supervised fine-to-coarse model, MS-TCN++, and DTGRM
 
--Write the Text Alignment section in the report
+-Write the Weakly Supervised fine-to-coarse model section in the report
 
 -Participate in group discussion, help organize notes, and contribute ideas to potential baseline model
