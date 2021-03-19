@@ -1,3 +1,4 @@
 R2:
-	- Read papers on GCN, text-video alignment and early works on action segmentation.
-	- Write introduction to action segmentation, early works and graph neural networks sections.
+	- Read the paper Temporal Relational Modeling with Self-Supervision for Action Segmentation
+	- Write summary for DTGRM in the report
+	- Contribute to group discussion about baseline models and the proposed method
