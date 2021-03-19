@@ -1,0 +1,4 @@
+R2:
+
+- Read about different methods in action segmentation (7 papers in total)
+- Write the section of Action segmentation, Early works, and graph convolution networks in the report

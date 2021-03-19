@@ -1,0 +1,3 @@
+R2:
+	- Read papers on GCN, text-video alignment and early works on action segmentation.
+	- Write introduction to action segmentation, early works and graph neural networks sections.

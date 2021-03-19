@@ -1,0 +1,7 @@
+R2:
+
+-Read papers about GCN and unsupervised approaches in text alignment
+
+-Write the Text Alignment section in the report
+
+-Participate in group discussion, help organize notes, and contribute ideas to potential baseline model
