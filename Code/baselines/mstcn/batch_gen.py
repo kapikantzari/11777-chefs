@@ -18,7 +18,12 @@ class BatchGenerator(object):
         fig = plt.figure()
         self.ax = fig.add_subplot(111)
         plt.axis('off')
-        self.colors = np.random.rand(num_classes, 3)
+        colors_txt = open('color.txt', 'r').read().split('\n')[:-1]
+        colors = []
+        for i in range(len(colors_txt)):
+            c = [float(v) for v in colors_txt[i].split(', ')]
+            colors.append(c)
+        self.colors = np.array(colors)
 
     def reset(self):
         self.index = 0
