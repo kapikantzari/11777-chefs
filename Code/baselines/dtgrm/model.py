@@ -12,6 +12,9 @@ from visualize import visualize, plot_table
 from layers import SingleStageModel, GCNStageModel, exchange_time
 import os 
 
+loss_weight = [2.42, 2.58, 2.0025, 3.4317, 3.9258, 3.4896, 4.3452, 2.7867, 4.7968, 3.632, 2.8122, 4.3794, 4.0578, 5.1289, 4.5099, 5.3965, 5.1013, 5.4486, 5.3951, 4.3941, 5.5349, 5.4607, 5.4503, 5.195, 5.6235, 5.4568, 5.7294, 5.2859, 6.2777, 5.4185, 5.5121, 6.964, 6.7155, 6.662, 6.1543, 6.5912, 6.3752, 6.1227, 6.2823, 6.4502, 6.3478, 6.9088, 6.0572, 6.8712, 6.9043, 5.9277, 6.4784, 6.0136, 6.1658, 6.018, 7.3134, 5.8112, 5.8797, 6.915, 7.7222, 6.8789, 7.8932, 6.2395, 6.9277, 7.0426, 7.0201, 7.515, 8.2545, 7.3117, 7.6911, 7.9406, 7.9759, 7.7007, 7.4564, 7.1744, 8.068, 8.9555, 6.1383, 8.4579, 7.0757, 8.6479, 8.2438, 6.3452, 7.6783, 8.5644, 8.9496, 8.6475, 7.4734, 9.873, 8.0403, 8.618, 9.1365, 8.5578, 8.1769, 8.989, 9.757, 10.2004, 8.3307, 12.1194, 9.5974, 12.5848, 9.6096, 1.3277]
+# [11.0, 13.0, 7.0, 30.0, 50.0, 32.0, 77.0, 16.0, 100.0, 37.0, 16.0, 79.0, 57.0, 100.0, 90.0, 100.0, 100.0, 100.0, 100.0, 81.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 100.0, 3.0]
+
 class MultiStageModel(nn.Module):
     def __init__(self, num_stages, num_layers, num_f_maps, df_size, dim, num_classes):
         super(MultiStageModel, self).__init__()
@@ -87,7 +90,9 @@ class MultiStageModel(nn.Module):
 class Trainer:
     def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, background_class_idx, df_size, val_every=50, visualize_every=5, filter_background = False):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, df_size, dim, num_classes)
-        self.ce = nn.CrossEntropyLoss(ignore_index=-100)
+        self.loss_weight = torch.Tensor(loss_weight).to('cuda')
+        self.ce = nn.CrossEntropyLoss(weight=self.loss_weight)#ignore_index=-100)
+        self.ce2 = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')
         self.num_classes = num_classes
         self.background_class_idx = background_class_idx
@@ -146,7 +151,7 @@ class Trainer:
                 optimizer.zero_grad()
                 # predictions = self.model(batch_input, mask)
                 predictions, exchange_outputs, exchange_labels, exchange_cls_outputs = self.model(batch_input, mask)
-
+                # print(predictions.shape, batch_target.shape)
                 loss = 0
                 for p in predictions:
                     loss += self.ce(p.transpose(2, 1).contiguous().view(-1, self.num_classes), batch_target.view(-1))
@@ -157,7 +162,7 @@ class Trainer:
                     loss += 0.15*torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1), F.log_softmax(p.detach()[:, :, :-1], dim=1)), min=0, max=16)*mask[:, :, 1:])
 
                 for pred, gt in zip(exchange_outputs, exchange_labels):
-                    loss += 2*self.ce(pred.transpose(2, 1).contiguous().view(-1, 2), gt.view(-1))
+                    loss += 2*self.ce2(pred.transpose(2, 1).contiguous().view(-1, 2), gt.view(-1))
 
                 epoch_loss += loss.item()
                 loss.backward()
