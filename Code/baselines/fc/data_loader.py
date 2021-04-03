@@ -7,10 +7,10 @@ import matplotlib.pyplot as plt
 
 
 class DataLoader(object):
-    def __init__(self, config, dataset):
+    def __init__(self, config, mode):
         self.config = config
-        # self.train_mode = train_mode
-        if dataset == 'train':
+        self.mode = mode
+        if mode == 'train':
             self.path = config.train_path
             self.features_path = os.path.join(self.config.features_path, 'train')
         else:
@@ -20,12 +20,13 @@ class DataLoader(object):
         self.y = []
         self.video_ids = []
         self.dataloaders = []
-        self.visualize_idx = None
-        fig = plt.figure()
-        self.ax = fig.add_subplot(111)
-        plt.axis('off')
-        plt.xlim([-600, 2000])
-        plt.ylim([20-100*(config.epochs//self.config.epochs+5), 100])
+        self.fig = []
+        self.ax = []
+        for i in range(len(config.plot_samples)):
+            fig, ax = plt.subplots(self.config.epochs//self.config.plot_freq+1, 1, figsize=(20, 2*self.config.epochs//self.config.plot_freq+1))
+            self.fig.append(fig)
+            self.ax.append(ax)
+        self.visual_idx = []
         self.load_data()
 
     def load_data(self):
@@ -34,15 +35,18 @@ class DataLoader(object):
         print("Reading data...")
         if self.config.random_sampling:
             np.random.shuffle(features)
-            features = features[:len(features)//2]
+            features = features[:len(features)//self.config.random_sampling_ratio]
 
-        for feature in tqdm(features):
+        for f in tqdm(range(len(features))):
+            feature = features[f]
             if self.config.downsample:
                 X = np.load(os.path.join(self.features_path, feature+'.npy'))[:-1][::10,:]
                 step = 10
             else: 
                 X = np.load(os.path.join(self.features_path, feature+'.npy'))[:-1]
                 step = 1
+            if feature in self.config.plot_samples:
+                self.visual_idx.append(f)
             y = []
             verbs = open(os.path.join(self.config.gt_path,
                                         feature+'.txt'), 'r').read().split('\n')[:-1]
@@ -59,6 +63,5 @@ class DataLoader(object):
             self.y.append(y)
             self.dataloaders.append(
                 torch.utils.data.DataLoader(dataset, batch_size=self.config.batch_size))
-        self.visualize_idx = np.random.randint(len(self.y), size=1)[0]
 
 
