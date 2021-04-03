@@ -23,7 +23,8 @@ def plot_color_bar(ax, y, colors, cap):
     ax.autoscale()
 
 
-def visualize(config, ax, label, cap, filename=None):
+def visualize(config, fig, ax, label, cap, filename=None):
     plot_color_bar(ax, label, config.colors, cap)
     if cap == "GT":
-        plt.savefig(filename+'.png', dpi=300)
+        fig.savefig(filename+'.png', dpi=300)
+        plt.close(fig)

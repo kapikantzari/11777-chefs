@@ -39,14 +39,14 @@ class Config:
     epochs = 50 #change this
     do_augment = True
     random_sampling = False #change this
-    random_sampling_ratio = 50 #change this
+    random_sampling_ratio = 100 #change this
     downsample = True
     # callbacks
     earlystopping_patience = 15
     reduce_lr_patience = 1
     reduce_lr_factor = 0.1
     minimum_lr = 1.0e-6
-    lr = 3e-04
+    lr = 1e-04
 
 if __name__ == '__main__':
     train(Config)

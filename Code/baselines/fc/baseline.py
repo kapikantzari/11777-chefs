@@ -31,9 +31,9 @@ def evaluate(config, model, data, epoch, mode):
 
     if (epoch+1) % config.plot_freq == 0 and mode == 'val':
         for i in range(len(data.visual_idx)):
-            visualize(config, data.ax[i].flat[epoch//config.plot_freq], y_hat_val[data.visual_idx[i]].reshape(-1), 'Epoch {} Pred'.format(epoch+1))
+            visualize(config, data.fig[i], data.ax[i].flat[epoch//config.plot_freq], y_hat_val[data.visual_idx[i]].reshape(-1), 'Epoch {} Pred'.format(epoch+1))
             if epoch == config.epochs - 1:
-                visualize(config, data.ax[i].flat[epoch//config.plot_freq+1], data.y[data.visual_idx[i]], "GT", filename=os.path.join(config.results_path, data.video_ids[i]))
+                visualize(config, data.fig[i], data.ax[i].flat[epoch//config.plot_freq+1], data.y[data.visual_idx[i]], "GT", filename=os.path.join(config.results_path, data.video_ids[data.visual_idx[i]]))
         
     wandb_dict = dict()
     for key in metrics.keys():

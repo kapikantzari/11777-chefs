@@ -36,6 +36,8 @@ class DataLoader(object):
         if self.config.random_sampling:
             np.random.shuffle(features)
             features = features[:len(features)//self.config.random_sampling_ratio]
+        if self.mode != 'train':
+            features = self.config.plot_samples
 
         for f in tqdm(range(len(features))):
             feature = features[f]
