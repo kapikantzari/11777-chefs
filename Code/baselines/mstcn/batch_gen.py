@@ -12,6 +12,9 @@ class BatchGenerator(object):
         self.index = 0
         self.num_classes = num_classes
         self.actions_dict = actions_dict
+        self.actions_dict_rev = {}
+        for k,v in self.actions_dict.items():
+            self.actions_dict_rev[v] = k
         self.gt_path = gt_path
         self.features_path = features_path
         self.sample_rate = sample_rate
@@ -126,4 +129,4 @@ class BatchGenerator(object):
             batch_target_tensor[i, :np.shape(batch_target[i])[0]] = torch.from_numpy(batch_target[i])
             mask[i, :, :np.shape(batch_target[i])[0]] = torch.ones(self.num_classes, np.shape(batch_target[i])[0])
 
-        return batch_input_tensor, batch_target_tensor, mask
+        return batch_input_tensor, batch_target_tensor, mask, batch

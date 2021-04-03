@@ -61,7 +61,7 @@ class DilatedResidualLayer(nn.Module):
 
 
 class Trainer:
-    def __init__(self, num_blocks, num_layers, num_f_maps, dim, num_classes, val_every=50):
+    def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, val_every=50):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
@@ -69,6 +69,9 @@ class Trainer:
         self.num_classes = num_classes
 
         self.val_every = val_every
+        self.wandb_run_name = wandb_run_name
+
+        self.videos_to_visualize = ['P16_04','P23_05','P29_05','P01_15','P05_07','P32_04','P26_39','P19_05','P01_11','P04_26','P07_17']
 
     def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, device, \
         scheduler_step, scheduler_gamma):
@@ -92,7 +95,7 @@ class Trainer:
                 self.model.to(device)
                 batch_count += 1
 
-                batch_input, batch_target, mask = batch_gen.next_batch(batch_size)
+                batch_input, batch_target, mask, _ = batch_gen.next_batch(batch_size)
                 batch_input, batch_target, mask = batch_input.to(device), batch_target.to(device), mask.to(device)
                 optimizer.zero_grad()
                 predictions = self.model(batch_input, mask)
@@ -127,8 +130,16 @@ class Trainer:
                 
 
             scheduler.step()
-            torch.save(self.model.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".model")
-            torch.save(optimizer.state_dict(), save_dir + "/epoch-" + str(epoch + 1) + ".opt")
+            save_path = os.path.join(save_dir, '{}'.format(self.wandb_run_name))
+            model_path = os.path.join(save_path, 'epoch-{}.model'.format(epoch+1))
+            optimizer_path = os.path.join(save_path, 'epoch-{}.opt'.format(epoch+1))
+            
+            
+            torch.save(self.model.state_dict(), model_path)
+            torch.save(optimizer.state_dict(), optimizer_path)
+
+            wandb.save(model_path)
+            wandb.save(optimizer_path)
             
             print("Training: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples), float(correct)/total))
 
@@ -144,7 +155,7 @@ class Trainer:
 
             while val_batch_gen.has_next():
                 self.model.to(device)
-                batch_input, batch_target, mask = val_batch_gen.next_batch(batch_size)
+                batch_input, batch_target, mask, batch_video_ids = val_batch_gen.next_batch(batch_size)
                 batch_input, batch_target, mask = batch_input.to(device), batch_target.to(device), mask.to(device)
 
                 predictions = self.model(batch_input, mask)
@@ -164,9 +175,10 @@ class Trainer:
                 results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
                 f1_score += results_dict['F1@ 0.50']
                 edit_dist += results_dict['edit']
-                
-            if epoch == num_epochs - 1:  
-                visualize(batch_target, predicted, val_batch_gen.ax, val_batch_gen.colors)
+
+                batch_video_id = batch_video_ids[0]
+                if batch_video_id in self.videos_to_visualize: 
+                    visualize(epoch, cnt, batch_video_id, batch_target, predicted, val_batch_gen.ax, val_batch_gen.colors, val_batch_gen.actions_dict_rev)
 
             wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
                 'validate/acc' : float(correct)/total,
