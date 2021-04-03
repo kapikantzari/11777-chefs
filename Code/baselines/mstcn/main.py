@@ -40,6 +40,8 @@ parser.add_argument('--scheduler_gamma', type=float, default=0.7)
 parser.add_argument('--vocab_subset', type=str, default=None)
 parser.add_argument('--visualize_every', type=int, default=5)
 parser.add_argument('--filter_background', dest='filter_background', action='store_true', help='filter out background to calculate accuracy')
+parser.add_argument('--train_file_name', type=str, default='train.txt')
+parser.add_argument('--val_file_name', type=str, default='validation.txt')
 
 args = parser.parse_args()
 
@@ -56,6 +58,8 @@ scheduler_gamma = args.scheduler_gamma
 visualize_every = args.visualize_every
 filter_background = args.filter_background
 num_subplots = num_epochs // visualize_every + 1
+train_file_name = args.train_file_name
+val_file_name = args.val_file_name
 
 config = wandb.config
 config.num_stages = num_stages
@@ -70,6 +74,8 @@ config.scheduler_step = scheduler_step
 config.scheduler_gamma = scheduler_gamma
 config.visualize_every = visualize_every
 config.filter_background = filter_background
+config.train_file_name = train_file_name
+config.val_file_name = val_file_name
 
 # vid_list_file = "./data/"+args.dataset+"/splits/train.split"+args.split+".bundle"
 # vid_list_file_tst = "./data/"+args.dataset+"/splits/test.split"+args.split+".bundle"
@@ -95,8 +101,8 @@ config.filter_background = filter_background
 
 # num_classes = len(actions_dict)
 
-vid_list_file = os.path.join(args.root_dir, 'train.txt')
-vid_list_file_tst = os.path.join(args.root_dir, 'validation.txt')
+vid_list_file = os.path.join(args.root_dir, train_file_name)
+vid_list_file_tst = os.path.join(args.root_dir, val_file_name)
 features_path = os.path.join(args.root_dir, 'features')
 gt_path = os.path.join(args.root_dir, 'groundTruth')
 color_path = os.path.join(args.root_dir, 'color.txt')
