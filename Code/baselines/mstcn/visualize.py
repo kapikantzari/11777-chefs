@@ -32,29 +32,6 @@ def table_list(y, actions_dict_rev):
 
     return labels
 
-def visualize(epoch, cnt, batch_video_id, y, y_hat, ax, colors, actions_dict_rev):
-    # y, y_hat are the ground truth and predicted labels of N frames of a video
-    # filename: include some information about parameters
-    y = y.cpu().numpy().reshape(-1)
-    y_hat = y_hat.cpu().numpy().reshape(-1)
-    
-    plot_color_bar(ax, y, colors, 0)
-    plt.text(-100, 20, "GT", fontsize=12)
-    plot_color_bar(ax, y_hat, colors, -100)
-    plt.text(-120, -80, "Pred", fontsize=12)
-    
-    plt.xlim([-200, 1100])
-    plt.ylim([-300, 200])  
-    
-    plt.tight_layout()
-    wandb.log({'image/{}_{}'.format(batch_video_id, epoch): plt}, step=cnt)
-    # plt.savefig('/home/ubuntu/results/qualitative_result.png', dpi=300)
-    action_str_list = table_list(y, actions_dict_rev)
-    wandb.log({"table/pred_{}_{}".format(batch_video_id, epoch): wandb.Table(data=action_str_list, columns=["Predicted Label"])}, step=cnt)
-    action_str_list = table_list(y_hat, actions_dict_rev)
-    wandb.log({"table/gt_{}_{}".format(batch_video_id, epoch): wandb.Table(data=action_str_list, columns=["Groundtruth Label"])}, step=cnt)
-
-    plt.close()
 
 def visualize(batch_video_id, actions_dict_rev, y, ax, colors, cap, filename=None):
     # y, y_hat are the ground truth and predicted labels of N frames of a video

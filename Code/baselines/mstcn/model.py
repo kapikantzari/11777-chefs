@@ -9,6 +9,7 @@ import numpy as np
 import wandb
 from eval import single_eval_scores
 from visualize import visualize
+import os 
 
 loss_weight = [106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
        106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
@@ -61,7 +62,7 @@ class DilatedResidualLayer(nn.Module):
 
 
 class Trainer:
-    def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, val_every=50):
+    def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, val_every=50, visualize_every=5):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
@@ -69,7 +70,9 @@ class Trainer:
         self.num_classes = num_classes
 
         self.val_every = val_every
+        self.visualize_every = visualize_every
         self.wandb_run_name = wandb_run_name
+        print("===> Trainer with wandb run named as: ", self.wandb_run_name)
 
         self.videos_to_visualize = ['P16_04','P23_05','P29_05','P01_15','P05_07','P32_04','P26_39','P19_05','P01_11','P04_26','P07_17']
 
@@ -131,6 +134,8 @@ class Trainer:
 
             scheduler.step()
             save_path = os.path.join(save_dir, '{}'.format(self.wandb_run_name))
+            if not os.file.exists(save_path):
+                os.mkdir(save_path)
             model_path = os.path.join(save_path, 'epoch-{}.model'.format(epoch+1))
             optimizer_path = os.path.join(save_path, 'epoch-{}.opt'.format(epoch+1))
             
@@ -145,6 +150,7 @@ class Trainer:
 
     def evaluate(self, val_batch_gen, num_epochs, epoch, cnt, device, batch_size):
         self.model.eval()
+        visualize_this_epoch = (epoch+1) % self.visualize_every == 0
         with torch.no_grad():
             correct = 0
             total = 0
@@ -175,10 +181,22 @@ class Trainer:
                 results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
                 f1_score += results_dict['F1@ 0.50']
                 edit_dist += results_dict['edit']
+                
+                if not visualize_this_epoch:
+                    continue
 
                 batch_video_id = batch_video_ids[0]
                 if batch_video_id in self.videos_to_visualize: 
-                    visualize(epoch, cnt, batch_video_id, batch_target, predicted, val_batch_gen.ax, val_batch_gen.colors, val_batch_gen.actions_dict_rev)
+                    if visualize_this_epoch:
+                        ax_name = val_batch_gen.ax.flat[epoch//self.visualize_every]
+                        color_name = val_batch_gen.colors
+                        cap = 'Pred_Epoch_{}'.format(epoch)
+                        visualize(batch_video_id, val_batch_gen.actions_dict_rev, predicted, ax_name, color_name, cap)
+                    if epoch == num_epochs - 1:
+                        ax_name = val_batch_gen.ax.flat[epoch//self.visualize_every]+1
+                        color_name = val_batch_gen.colors
+                        cap = 'GT'
+                        visualize(batch_video_id, val_batch_gen.actions_dict_rev, batch_target, ax_name, color_name, cap)
 
             wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
                 'validate/acc' : float(correct)/total,

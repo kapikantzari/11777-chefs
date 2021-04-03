@@ -38,6 +38,7 @@ parser.add_argument('--lr', type=float, default=0.0001)
 parser.add_argument('--scheduler_step', type=int, default=15)
 parser.add_argument('--scheduler_gamma', type=float, default=0.7)
 parser.add_argument('--vocab_subset', type=str, default=None)
+parser.add_argument('--visualize_every', type=int, default=5)
 
 args = parser.parse_args()
 
@@ -51,6 +52,8 @@ num_epochs = args.num_epochs
 sample_rate = 1
 scheduler_step = args.scheduler_step
 scheduler_gamma = args.scheduler_gamma
+visualize_every = args.visualize_every
+num_subplots = num_epochs // visualize_every + 1
 
 config = wandb.config
 config.num_stages = num_stages
@@ -63,6 +66,7 @@ config.num_epochs = num_epochs
 config.sample_rate = sample_rate
 config.scheduler_step = scheduler_step
 config.scheduler_gamma = scheduler_gamma
+config.visualize_every = visualize_every
 
 # vid_list_file = "./data/"+args.dataset+"/splits/train.split"+args.split+".bundle"
 # vid_list_file_tst = "./data/"+args.dataset+"/splits/test.split"+args.split+".bundle"
@@ -92,6 +96,7 @@ vid_list_file = os.path.join(args.root_dir, 'train.txt')
 vid_list_file_tst = os.path.join(args.root_dir, 'validation.txt')
 features_path = os.path.join(args.root_dir, 'features')
 gt_path = os.path.join(args.root_dir, 'groundTruth')
+color_path = os.path.join(args.root_dir, 'color.txt')
 
 action_dict_file = os.path.join(args.root_dir, 'action_dictionary.pkl')
 actions_dict = None
@@ -128,18 +133,18 @@ if not os.path.exists(model_dir):
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
-trainer = Trainer(wandb_run_name, num_stages, num_layers, num_f_maps, features_dim, num_classes)
+trainer = Trainer(wandb_run_name, num_stages, num_layers, num_f_maps, features_dim, num_classes, visualize_every=visualize_every)
 if args.action == "train":
     seed = 1538574472
     random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    batch_gen = BatchGenerator(num_classes, actions_dict, gt_path, features_path, sample_rate)
+    batch_gen = BatchGenerator(num_classes, actions_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
     batch_gen.read_data(vid_list_file)
     batch_gen.check_example_exist()
 
-    val_batch_gen = BatchGenerator(num_classes, actions_dict, gt_path, features_path, sample_rate)
+    val_batch_gen = BatchGenerator(num_classes, actions_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
     val_batch_gen.read_data(vid_list_file_tst)
     val_batch_gen.check_example_exist()
     

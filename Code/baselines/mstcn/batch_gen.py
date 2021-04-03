@@ -7,7 +7,7 @@ import os
 import matplotlib.pyplot as plt
 
 class BatchGenerator(object):
-    def __init__(self, num_classes, actions_dict, gt_path, features_path, sample_rate):
+    def __init__(self, num_classes, actions_dict, gt_path, features_path, color_path, sample_rate, num_subplots=5):
         self.list_of_examples = list()
         self.index = 0
         self.num_classes = num_classes
@@ -21,12 +21,13 @@ class BatchGenerator(object):
         fig = plt.figure()
         self.ax = fig.add_subplot(111)
         plt.axis('off')
-        colors_txt = open('color.txt', 'r').read().split('\n')[:-1]
+        colors_txt = open(color_path, 'r').read().split('\n')[:-1]
         colors = []
         for i in range(len(colors_txt)):
             c = [float(v) for v in colors_txt[i].split(', ')]
             colors.append(c)
         self.colors = np.array(colors)
+        self.fig, self.ax = plt.subplots(num_subplots, 1, figsize=(20,2*num_subplots))
 
     def reset(self):
         self.index = 0
