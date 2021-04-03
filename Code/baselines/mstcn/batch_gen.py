@@ -7,23 +7,25 @@ import os
 import matplotlib.pyplot as plt
 
 class BatchGenerator(object):
-    def __init__(self, num_classes, actions_dict, gt_path, features_path, sample_rate):
+    def __init__(self, num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots=5):
         self.list_of_examples = list()
         self.index = 0
         self.num_classes = num_classes
         self.actions_dict = actions_dict
+        self.actions_dict_rev = rrev_dict
         self.gt_path = gt_path
         self.features_path = features_path
         self.sample_rate = sample_rate
         fig = plt.figure()
         self.ax = fig.add_subplot(111)
         plt.axis('off')
-        colors_txt = open('color.txt', 'r').read().split('\n')[:-1]
+        colors_txt = open(color_path, 'r').read().split('\n')[:-1]
         colors = []
         for i in range(len(colors_txt)):
             c = [float(v) for v in colors_txt[i].split(', ')]
             colors.append(c)
         self.colors = np.array(colors)
+        self.fig, self.ax = plt.subplots(num_subplots, 1, figsize=(20,2*num_subplots))
 
     def reset(self):
         self.index = 0
@@ -126,4 +128,4 @@ class BatchGenerator(object):
             batch_target_tensor[i, :np.shape(batch_target[i])[0]] = torch.from_numpy(batch_target[i])
             mask[i, :, :np.shape(batch_target[i])[0]] = torch.ones(self.num_classes, np.shape(batch_target[i])[0])
 
-        return batch_input_tensor, batch_target_tensor, mask
+        return batch_input_tensor, batch_target_tensor, mask, batch
