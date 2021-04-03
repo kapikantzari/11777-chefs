@@ -8,7 +8,7 @@ import copy
 import numpy as np
 import wandb
 from eval import single_eval_scores
-from visualize import visualize
+from visualize import visualize, plot_table
 import os 
 
 loss_weight = [106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
@@ -134,7 +134,7 @@ class Trainer:
 
             scheduler.step()
             save_path = os.path.join(save_dir, '{}'.format(self.wandb_run_name))
-            if not os.file.exists(save_path):
+            if not os.path.exists(save_path):
                 os.mkdir(save_path)
             model_path = os.path.join(save_path, 'epoch-{}.model'.format(epoch+1))
             optimizer_path = os.path.join(save_path, 'epoch-{}.opt'.format(epoch+1))
@@ -191,12 +191,15 @@ class Trainer:
                         ax_name = val_batch_gen.ax.flat[epoch//self.visualize_every]
                         color_name = val_batch_gen.colors
                         cap = 'Pred_Epoch_{}'.format(epoch)
-                        visualize(batch_video_id, val_batch_gen.actions_dict_rev, predicted, ax_name, color_name, cap)
+                        visualize(batch_video_id, predicted, ax_name, color_name, cap)
+                    
                     if epoch == num_epochs - 1:
                         ax_name = val_batch_gen.ax.flat[epoch//self.visualize_every]+1
                         color_name = val_batch_gen.colors
                         cap = 'GT'
-                        visualize(batch_video_id, val_batch_gen.actions_dict_rev, batch_target, ax_name, color_name, cap)
+                        visualize(batch_video_id, batch_target, ax_name, color_name, cap)
+                    
+                    plot_table(cnt, batch_video_id, predicted, batch_target, val_batch_gen.actions_dict_rev)
 
             wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
                 'validate/acc' : float(correct)/total,

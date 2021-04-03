@@ -103,6 +103,14 @@ actions_dict = None
 with open(action_dict_file, 'rb') as f:
     actions_dict = pickle.load(f)
 
+rev_dict_file = os.path.join(args.root_dir, 'verb.txt')
+rev_dict = {}
+file_ptr = open(rev_dict_file, 'r')
+action_name_list = file_ptr.read().split('\n')[:-1]
+file_ptr.close()
+for name_idx, name in enumerate(action_name_list):
+    rev_dict[name] = name_idx
+
 if args.vocab_subset != None:
     temp_map = {}
     for i, idx in enumerate(vocab_subset[args.vocab_subset]):
@@ -117,9 +125,26 @@ if args.vocab_subset != None:
         else:
             actions_dict[k] = temp_map[v]
     actions_dict[args.background_name] = bg_cls
+
+    for k, v in rev_dict.items():
+        if v not in vocab_subset[args.vocab_subset]:
+            rev_dict[k] = bg_cls
+        else:
+            rev_dict[k] = temp_map[v]
+    rev_dict[args.background_name] = bg_cls
+
+    rrev_dict = {}
+    for k,v in rev_dict.items():
+        rrev_dict[v] = k
+
 else:
     max_val = np.max(list(actions_dict.values()))
     actions_dict[args.background_name] = max_val+1
+
+    rev_dict[args.background_name] = max_val+1
+    rrev_dict = {}
+    for k,v in rev_dict.items():
+        rrev_dict[v] = k
 
 max_val = np.max(list(actions_dict.values()))
 num_classes = max_val+1
@@ -140,11 +165,11 @@ if args.action == "train":
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    batch_gen = BatchGenerator(num_classes, actions_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
+    batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
     batch_gen.read_data(vid_list_file)
     batch_gen.check_example_exist()
 
-    val_batch_gen = BatchGenerator(num_classes, actions_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
+    val_batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
     val_batch_gen.read_data(vid_list_file_tst)
     val_batch_gen.check_example_exist()
     

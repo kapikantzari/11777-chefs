@@ -7,14 +7,12 @@ import os
 import matplotlib.pyplot as plt
 
 class BatchGenerator(object):
-    def __init__(self, num_classes, actions_dict, gt_path, features_path, color_path, sample_rate, num_subplots=5):
+    def __init__(self, num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots=5):
         self.list_of_examples = list()
         self.index = 0
         self.num_classes = num_classes
         self.actions_dict = actions_dict
-        self.actions_dict_rev = {}
-        for k,v in self.actions_dict.items():
-            self.actions_dict_rev[v] = k
+        self.actions_dict_rev = rrev_dict
         self.gt_path = gt_path
         self.features_path = features_path
         self.sample_rate = sample_rate
