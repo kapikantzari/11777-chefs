@@ -2,7 +2,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import wandb
-
+import io
+from PIL import Image
+import PIL
 
 def plot_color_bar(ax, y, colors, cap):
     ax.axis('off')
@@ -29,7 +31,6 @@ def table_list(y, actions_dict_rev):
     for i in range(len(y)-1):
         if y[i] != y[i+1]:
             labels.append(actions_dict_rev[y[i+1]])
-    labels.append(actions_dict_rev[y[len(y)-1]])
 
     return labels
 
@@ -45,13 +46,17 @@ def plot_table(cnt, batch_video_id, y_pred, y_gt, actions_dict_rev):
     
     wandb.log({"table/{}".format(batch_video_id): wandb.Table(data=data, columns=["Index", "Predicted", "GT"])}, step=cnt)
 
-def visualize(batch_video_id, y, ax, colors, cap, filename=None):
+def visualize(cnt, batch_video_id, y, ax, fig, colors, cap, filename=None):
     # y, y_hat are the ground truth and predicted labels of N frames of a video
     # filename: include some information about parameters
     y = y.cpu().numpy().reshape(-1)
     plot_color_bar(ax, y, colors, cap)
 
     if cap == "GT":
-        plt.tight_layout()
-        wandb.log({'image/{}'.format(batch_video_id): plt})
-
+        # plt.tight_layout()
+        buf = io.BytesIO()
+        fig.savefig(buf)
+        buf.seek(0)
+        wandb.log({'image/{}'.format(batch_video_id): wandb.Image(PIL.Image.open(buf))}, step=cnt)
+        # wandb.log({'image/{}'.format(batch_video_id): plt}, step=cnt)
+        plt.close()

@@ -7,10 +7,11 @@ import os
 import matplotlib.pyplot as plt
 
 class BatchGenerator(object):
-    def __init__(self, num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots=5):
+    def __init__(self, num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots=10):
         self.list_of_examples = list()
         self.index = 0
         self.num_classes = num_classes
+
         self.actions_dict = actions_dict
         self.actions_dict_rev = rrev_dict
         self.gt_path = gt_path
@@ -25,7 +26,10 @@ class BatchGenerator(object):
             c = [float(v) for v in colors_txt[i].split(', ')]
             colors.append(c)
         self.colors = np.array(colors)
-        self.fig, self.ax = plt.subplots(num_subplots, 1, figsize=(20,2*num_subplots))
+        # self.fig, self.ax = plt.subplots(num_subplots, 1, figsize=(20,2*num_subplots))
+    
+    def reset_fig(self, cur_subplots):
+        self.fig, self.ax = plt.subplots(cur_subplots+1, 1, figsize=(20,2*(cur_subplots+1)))
 
     def reset(self):
         self.index = 0

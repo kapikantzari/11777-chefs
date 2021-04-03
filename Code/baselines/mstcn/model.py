@@ -62,19 +62,38 @@ class DilatedResidualLayer(nn.Module):
 
 
 class Trainer:
-    def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, val_every=50, visualize_every=5):
+    def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, background_class_idx, val_every=50, visualize_every=5, filter_background = False):
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')
         self.num_classes = num_classes
+        self.background_class_idx = background_class_idx
 
         self.val_every = val_every
         self.visualize_every = visualize_every
         self.wandb_run_name = wandb_run_name
         print("===> Trainer with wandb run named as: ", self.wandb_run_name)
 
-        self.videos_to_visualize = ['P16_04','P23_05','P29_05','P01_15','P05_07','P32_04','P26_39','P19_05','P01_11','P04_26','P07_17']
+        self.videos_to_visualize = ['P16_04', \
+            'P23_05', \
+            'P29_05', \
+            'P01_15',
+            'P05_07',
+            'P32_04',
+            'P26_39',
+            'P19_05',
+            'P01_11',
+            'P04_26',
+            'P04_32',
+            'P14_06',
+            'P19_05',
+            'P28_15',
+            'P07_17']
+
+        self.filter_background = filter_background
+
+        self.cur_subplots = 0
 
     def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, device, \
         scheduler_step, scheduler_gamma):
@@ -88,10 +107,12 @@ class Trainer:
         for epoch in range(num_epochs):
             epoch_loss = 0
             correct = 0
+            correct_nobkg = 0
             total = 0
             batch_count = 0
             f1_score = 0
             edit_dist = 0
+            f1_edit_count = 0
             batch_gen.reset()
 
             while batch_gen.has_next():
@@ -112,21 +133,32 @@ class Trainer:
                 loss.backward()
                 optimizer.step()
 
+                # if self.filter_background:
+                #     mask_bkg = batch_target != self.background_class_idx
+                # else:
+                #     mask_bkg = batch_target >= 0
+                mask_bkg = batch_target != self.background_class_idx
                 _, predicted = torch.max(predictions[-1].data, 1)
                 correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
+                correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
+                
                 total += torch.sum(mask[:, 0, :]).item()
-                results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
-                f1_score += results_dict['F1@ 0.50']
-                edit_dist += results_dict['edit']
+                if epoch >= num_epochs * 0.8:
+                    results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
+                    f1_score += results_dict['F1@ 0.50']
+                    edit_dist += results_dict['edit']
 
                 if cnt % self.val_every == 0:
                     self.evaluate(val_batch_gen, num_epochs, epoch, cnt, device, batch_size)
 
                     wandb_dict = {'train/epoch_loss' : epoch_loss / batch_count, \
                         'train/acc' : float(correct)/total,
-                        'train/edit': float(edit_dist) / batch_count, \
-                        'train/F1' : float(f1_score) / batch_count
+                        'train/acc_nobkg' : float(correct_nobkg)/total,
                         }
+                    if epoch >= num_epochs * 0.8:
+                        wandb_dict['train/edit'] = float(edit_dist) / batch_count
+                        wandb_dict['train/F1'] = float(f1_score) / batch_count
+
                     wandb.log(wandb_dict, step=cnt)
 
                 cnt += 1
@@ -150,9 +182,10 @@ class Trainer:
 
     def evaluate(self, val_batch_gen, num_epochs, epoch, cnt, device, batch_size):
         self.model.eval()
-        visualize_this_epoch = (epoch+1) % self.visualize_every == 0
+
         with torch.no_grad():
             correct = 0
+            correct_nobkg = 0
             total = 0
             epoch_loss = 0
             f1_score = 0
@@ -172,40 +205,49 @@ class Trainer:
                     loss += 0.15*torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1), F.log_softmax(p.detach()[:, :, :-1], dim=1)), min=0, max=16)*mask[:, :, 1:])
 
                 epoch_loss += loss.item()
+                mask_bkg = batch_target != self.background_class_idx
                 _, predicted = torch.max(predictions[-1].data, 1)
                 correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
+                correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
                 total += torch.sum(mask[:, 0, :]).item()
 
                 torch.cuda.empty_cache()
-                
-                results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
-                f1_score += results_dict['F1@ 0.50']
-                edit_dist += results_dict['edit']
-                
-                if not visualize_this_epoch:
-                    continue
+                if epoch >= num_epochs * 0.8:
+                    results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
+                    f1_score += results_dict['F1@ 0.50']
+                    edit_dist += results_dict['edit']
+
 
                 batch_video_id = batch_video_ids[0]
                 if batch_video_id in self.videos_to_visualize: 
-                    if visualize_this_epoch:
-                        ax_name = val_batch_gen.ax.flat[epoch//self.visualize_every]
+                    if (epoch+1) % self.visualize_every == 0:
+                        
+                        self.cur_subplots += 1
+                        val_batch_gen.reset_fig(1)
+                        
+                        ax_name = val_batch_gen.ax.flat[0]
+                        fig_name =  val_batch_gen.fig
                         color_name = val_batch_gen.colors
                         cap = 'Pred_Epoch_{}'.format(epoch)
-                        visualize(batch_video_id, predicted, ax_name, color_name, cap)
+                        visualize(cnt, batch_video_id, predicted, ax_name, fig_name, color_name, cap)
                     
-                    if epoch == num_epochs - 1:
-                        ax_name = val_batch_gen.ax.flat[epoch//self.visualize_every]+1
+                        #if epoch == num_epochs - 1:
+                        ax_name = val_batch_gen.ax.flat[1]
+                        fig_name =  val_batch_gen.fig
                         color_name = val_batch_gen.colors
                         cap = 'GT'
-                        visualize(batch_video_id, batch_target, ax_name, color_name, cap)
+                        visualize(cnt, batch_video_id, batch_target, ax_name, fig_name, color_name, cap)
                     
                     plot_table(cnt, batch_video_id, predicted, batch_target, val_batch_gen.actions_dict_rev)
 
             wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
                 'validate/acc' : float(correct)/total,
-                'validate/edit' : float(edit_dist) / len(val_batch_gen.list_of_examples),
-                'validate/F1' : float(f1_score) / len(val_batch_gen.list_of_examples),
+                'validate/acc_nobkg' : float(correct_nobkg)/total,
                 }
+            if epoch >= num_epochs * 0.8:
+                wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
+                wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
+
             wandb.log(wandb_dict, step=cnt)
             print("Validate: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total))
     

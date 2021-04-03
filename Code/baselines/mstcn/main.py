@@ -14,7 +14,7 @@ import numpy as np
 import wandb
 
 vocab_subset = {'cooking': [0, 1, 2, 7, 9, 10, 13, 14, 15, 16, 18, 19, 21, 22, 23, 25, 26, 28, 34, 35, 36, 39, 42, 43,  45, 46, 47, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 63, 66, 69, 75, 76, 77, 80, 81, 82, 83, 84, 90, 92, 93, 95, 96], 'salad': [46, 7, 19, 1, 82, 10, 92]}
-wandb.init(project='mstcn', entity='chefs')
+wandb.init(project='mstcn_v2', entity='chefs')
 wandb_run_name = wandb.run.name
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -39,6 +39,7 @@ parser.add_argument('--scheduler_step', type=int, default=15)
 parser.add_argument('--scheduler_gamma', type=float, default=0.7)
 parser.add_argument('--vocab_subset', type=str, default=None)
 parser.add_argument('--visualize_every', type=int, default=5)
+parser.add_argument('--filter_background', dest='filter_background', action='store_true', help='filter out background to calculate accuracy')
 
 args = parser.parse_args()
 
@@ -53,6 +54,7 @@ sample_rate = 1
 scheduler_step = args.scheduler_step
 scheduler_gamma = args.scheduler_gamma
 visualize_every = args.visualize_every
+filter_background = args.filter_background
 num_subplots = num_epochs // visualize_every + 1
 
 config = wandb.config
@@ -67,6 +69,7 @@ config.sample_rate = sample_rate
 config.scheduler_step = scheduler_step
 config.scheduler_gamma = scheduler_gamma
 config.visualize_every = visualize_every
+config.filter_background = filter_background
 
 # vid_list_file = "./data/"+args.dataset+"/splits/train.split"+args.split+".bundle"
 # vid_list_file_tst = "./data/"+args.dataset+"/splits/test.split"+args.split+".bundle"
@@ -103,6 +106,9 @@ actions_dict = None
 with open(action_dict_file, 'rb') as f:
     actions_dict = pickle.load(f)
 
+
+background_class_idx = -1
+
 rev_dict_file = os.path.join(args.root_dir, 'verb.txt')
 rev_dict = {}
 file_ptr = open(rev_dict_file, 'r')
@@ -136,6 +142,8 @@ if args.vocab_subset != None:
     rrev_dict = {}
     for k,v in rev_dict.items():
         rrev_dict[v] = k
+    
+    background_class_idx = bg_cls
 
 else:
     max_val = np.max(list(actions_dict.values()))
@@ -145,6 +153,8 @@ else:
     rrev_dict = {}
     for k,v in rev_dict.items():
         rrev_dict[v] = k
+    
+    background_class_idx = max_val+1
 
 max_val = np.max(list(actions_dict.values()))
 num_classes = max_val+1
@@ -158,7 +168,7 @@ if not os.path.exists(model_dir):
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
-trainer = Trainer(wandb_run_name, num_stages, num_layers, num_f_maps, features_dim, num_classes, visualize_every=visualize_every)
+trainer = Trainer(wandb_run_name, num_stages, num_layers, num_f_maps, features_dim, num_classes, background_class_idx, visualize_every=visualize_every, filter_background=filter_background)
 if args.action == "train":
     seed = 1538574472
     random.seed(seed)
