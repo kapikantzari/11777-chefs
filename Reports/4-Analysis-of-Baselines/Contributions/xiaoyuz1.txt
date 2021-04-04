@@ -1,0 +1,10 @@
+R4:
+
+- Modify existing I3D feature extraction scripts and extract features of P01-09
+- Write scripts for generating ground truths for the extracted features
+- Propose ablation experiment on long/short videos and write scripts for selecting these subsets
+- Detect the test data and wrong ground truths problem in training
+- Implement FC 
+- Implement visualization
+- Train FC, MSTCN, and DTGRM
+- Participate in group discussion

@@ -1,0 +1,306 @@
+%====================================
+% Related work (early works)
+@inproceedings{graphbased2020,
+author={Y. {Huang} and Y. {Sugano} and Y. {Sato}},
+booktitle={2020 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)}, 
+title={Improving Action Segmentation via Graph-Based Temporal Reasoning},
+year={2020},
+volume={},
+number={},
+pages={14021-14031},
+doi={10.1109/CVPR42600.2020.01404}
+}
+
+@inproceedings{robotics_action_seg,
+author = {Pardowitz, M. and Haschke, Robert and Steil, Jochen and Ritter, H.},
+year = {2009},
+month = {01},
+pages = {347 - 352},
+title = {Gestalt-based action segmentation for robot task learning},
+doi = {10.1109/ICHR.2008.4756003}
+}
+
+@article{shao2012human,
+  title={Human action segmentation and recognition via motion and shape analysis},
+  author={Shao, Ling and Ji, Ling and Liu, Yan and Zhang, Jianguo},
+  journal={Pattern Recognition Letters},
+  volume={33},
+  number={4},
+  pages={438--445},
+  year={2012},
+  publisher={Elsevier}
+}
+
+% Sliding window
+@INPROCEEDINGS{6247801,  author={M. {Rohrbach} and S. {Amin} and M. {Andriluka} and B. {Schiele}},  booktitle={2012 IEEE Conference on Computer Vision and Pattern Recognition},   title={A database for fine grained activity detection of cooking activities},   year={2012},  volume={},  number={},  pages={1194-1201},  doi={10.1109/CVPR.2012.6247801}}
+
+% Segmental models
+@misc{lea2016segmental,
+      title={Segmental Spatiotemporal CNNs for Fine-grained Action Segmentation}, 
+      author={Colin Lea and Austin Reiter and Rene Vidal and Gregory D. Hager},
+      year={2016},
+      eprint={1602.02995},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+
+@INPROCEEDINGS{6619177,  
+    author={A. {Fathi} and J. M. {Rehg}},  
+    booktitle={2013 IEEE Conference on Computer Vision and Pattern Recognition},   
+    title={Modeling Actions through State Changes},   
+    year={2013},  
+    volume={},  
+    number={},  
+    pages={2579-2586},  
+    doi={10.1109/CVPR.2013.333}}
+
+% Hybrid models (RNN)
+@INPROCEEDINGS{7477701,  
+    author={H. {Kuehne} and J. {Gall} and T. {Serre}},  
+    booktitle={2016 IEEE Winter Conference on Applications of Computer Vision (WACV)},   
+    title={An end-to-end generative framework for video segmentation and recognition},   
+    year={2016},  
+    volume={},  
+    number={},  
+    pages={1-8},  
+    doi={10.1109/WACV.2016.7477701}}
+
+@INPROCEEDINGS{8099623,  
+    author={A. {Richard} and H. {Kuehne} and J. {Gall}},  
+    booktitle={2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},  
+    title={Weakly Supervised Action Learning with RNN Based Fine-to-Coarse Modeling},   
+    year={2017},  
+    volume={},  
+    number={},  
+    pages={1273-1282},  
+    doi={10.1109/CVPR.2017.140}}
+
+% TCN
+@INPROCEEDINGS{8099596,  
+    author={C. {Lea} and M. D. {Flynn} and R. {Vidal} and A. {Reiter} and G. D. {Hager}},
+    booktitle={2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},  
+    title={Temporal Convolutional Networks for Action Segmentation and Detection},   
+    year={2017},  
+    volume={},  
+    number={},  
+    pages={1003-1012},  
+    doi={10.1109/CVPR.2017.113}}
+
+@INPROCEEDINGS{8953830,  
+    author={Y. A. {Farha} and J. {Gall}},  
+    booktitle={2019 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},   
+    title={MS-TCN: Multi-Stage Temporal Convolutional Network for Action Segmentation},  
+    year={2019},  
+    volume={},  
+    number={},  
+    pages={3570-3579},  
+    doi={10.1109/CVPR.2019.00369}}
+
+% GCNs
+@misc{wang2020temporal,
+      title={Temporal Relational Modeling with Self-Supervision for Action Segmentation}, 
+      author={Dong Wang and Di Hu and Xingjian Li and Dejing Dou},
+      year={2020},
+      eprint={2012.07508},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+
+% Text alignment
+@inproceedings{MultiModalSurvey,  
+    author={T. {Baltrušaitis} and C. {Ahuja} and L. {Morency}},  
+    journal={IEEE Transactions on Pattern Analysis and Machine Intelligence},   
+    title={Multimodal Machine Learning: A Survey and Taxonomy},   
+    year={2019},  
+    volume={41},  
+    number={2},  
+    pages={423-443},  
+    doi={10.1109/TPAMI.2018.2798607}}
+
+@inproceedings{unsupervised-align,  
+    author={J. {Alayrac} and P. {Bojanowski} and N. {Agrawal} and J. {Sivic} and I. {Laptev} and S. {Lacoste-Julien}},  
+    booktitle={2016 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)},  
+    title={Unsupervised Learning from Narrated Instruction Videos},   
+    year={2016},  
+    volume={},  
+    number={},  
+    pages={4575-4583},  
+    doi={10.1109/CVPR.2016.495}}
+
+@inproceedings{temporalAlignShi,
+    author = {Shi, Botian and Ji, Lei and Niu, Zhendong and Duan, Nan and Zhou, Ming and Chen, Xilin},
+    title = {Learning Semantic Concepts and Temporal Alignment for Narrated Video Procedural Captioning},
+    year = {2020},
+    isbn = {9781450379885},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi-org.proxy.library.cmu.edu/10.1145/3394171.3413498},
+    doi = {10.1145/3394171.3413498},
+    booktitle = {Proceedings of the 28th ACM International Conference on Multimedia},
+    pages = {4355–4363},
+    numpages = {9},
+    keywords = {video summarization, semantic concept, video captioning},
+    location = {Seattle, WA, USA},
+    series = {MM '20}}
+
+@inproceedings{malmaud-etal-2015-whats,
+    title = "What{'}s Cookin{'}? Interpreting Cooking Videos using Text, Speech and Vision",
+    author = "Malmaud, Jonathan  and
+      Huang, Jonathan  and
+      Rathod, Vivek  and
+      Johnston, Nicholas  and
+      Rabinovich, Andrew  and
+      Murphy, Kevin",
+    booktitle = "Proceedings of the 2015 Conference of the North {A}merican Chapter of the Association for Computational Linguistics: Human Language Technologies",
+    month = may # "{--}" # jun,
+    year = "2015",
+    address = "Denver, Colorado",
+    publisher = "Association for Computational Linguistics",
+    url = "https://www.aclweb.org/anthology/N15-1015",
+    doi = "10.3115/v1/N15-1015",
+    pages = "143--152",
+}
+
+% Text-image matching
+@misc{ren2016faster,
+      title={Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks}, 
+      author={Shaoqing Ren and Kaiming He and Ross Girshick and Jian Sun},
+      year={2016},
+      eprint={1506.01497},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+
+@misc{tian2019fcos,
+      title={FCOS: Fully Convolutional One-Stage Object Detection}, 
+      author={Zhi Tian and Chunhua Shen and Hao Chen and Tong He},
+      year={2019},
+      eprint={1904.01355},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+
+@misc{yoon2020semisupervised,
+      title={Semi-Supervised Object Detection with Sparsely Annotated Dataset}, 
+      author={Jihun Yoon and Seungbum Hong and Sanha Jeong and Min-Kook Choi},
+      year={2020},
+      eprint={2006.11692},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+
+@misc{lee2018stacked,
+      title={Stacked Cross Attention for Image-Text Matching}, 
+      author={Kuang-Huei Lee and Xi Chen and Gang Hua and Houdong Hu and Xiaodong He},
+      year={2018},
+      eprint={1803.08024},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV}
+}
+
+@misc{wang2019position,
+      title={Position Focused Attention Network for Image-Text Matching}, 
+      author={Yaxiong Wang and Hao Yang and Xueming Qian and Lin Ma and Jing Lu and Biao Li and Xin Fan},
+      year={2019},
+      eprint={1907.09748},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+%====================================
+% Data Analysis
+@ARTICLE{Damen2020RESCALING,
+   title={Rescaling Egocentric Vision},
+   author={Damen, Dima and Doughty, Hazel and Farinella, Giovanni Maria  and Furnari, Antonino 
+           and Ma, Jian and Kazakos, Evangelos and Moltisanti, Davide and Munro, Jonathan 
+           and Perrett, Toby and Price, Will and Wray, Michael},
+           journal   = {CoRR},
+           volume    = {abs/2006.13256},
+           year      = {2020},
+           ee        = {http://arxiv.org/abs/2006.13256},
+} 
+
+@inproceedings{miech19howto100m,
+   title={How{T}o100{M}: {L}earning a {T}ext-{V}ideo {E}mbedding by {W}atching {H}undred {M}illion {N}arrated {V}ideo {C}lips},
+   author={Miech, Antoine and Zhukov, Dimitri and Alayrac, Jean-Baptiste and Tapaswi, Makarand and Laptev, Ivan and Sivic, Josef},
+   booktitle={ICCV},
+   year={2019},
+}
+
+@inproceedings{ZhXuCoAAAI18,
+    author={Zhou, Luowei and Xu, Chenliang and Corso, Jason J},
+    title = {Towards Automatic Learning of Procedures From Web Instructional Videos},
+    booktitle = {AAAI Conference on Artificial Intelligence},
+    pages={7590--7598},
+    year = {2018},
+    url = {https://www.aaai.org/ocs/index.php/AAAI/AAAI18/paper/view/17344}}
+
+@inproceedings{pennington2014glove,
+    author = {Jeffrey Pennington and Richard Socher and Christopher D. Manning},
+    booktitle = {Empirical Methods in Natural Language Processing (EMNLP)},
+    title = {GloVe: Global Vectors for Word Representation},
+    year = {2014},
+    pages = {1532--1543},
+    url = {http://www.aclweb.org/anthology/D14-1162}}
+
+%====================================
+% Baselines
+@ARTICLE{9186840,
+  author={S. -J. {Li} and Y. {AbuFarha} and Y. {Liu} and M. -M. {Cheng} and J. {Gall}},
+  journal={IEEE Transactions on Pattern Analysis and Machine Intelligence}, 
+  title={MS-TCN++: Multi-Stage Temporal Convolutional Network for Action Segmentation}, 
+  year={2020},
+  volume={},
+  number={},
+  pages={1-1},
+  doi={10.1109/TPAMI.2020.3021756}}
+  
+
+@INPROCEEDINGS{8099985,
+  author={J. {Carreira} and A. {Zisserman}},
+  booktitle={2017 IEEE Conference on Computer Vision and Pattern Recognition (CVPR)}, 
+  title={Quo Vadis, Action Recognition? A New Model and the Kinetics Dataset}, 
+  year={2017},
+  volume={},
+  number={},
+  pages={4724-4733},
+  doi={10.1109/CVPR.2017.502}}
+  
+%====================================
+% Analysis
+@INPROCEEDINGS{5995444,
+  author={A. {Fathi} and X. {Ren} and J. M. {Rehg}},
+  booktitle={CVPR 2011}, 
+  title={Learning to recognize objects in egocentric activities}, 
+  year={2011},
+  volume={},
+  number={},
+  pages={3281-3288},
+  doi={10.1109/CVPR.2011.5995444}}
+  
+@inproceedings{10.1145/2493432.2493482,
+    author = {Stein, Sebastian and McKenna, Stephen J.},
+    title = {Combining Embedded Accelerometers with Computer Vision for Recognizing Food Preparation Activities},
+    year = {2013},
+    isbn = {9781450317702},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    url = {https://doi.org/10.1145/2493432.2493482},
+    doi = {10.1145/2493432.2493482},
+    booktitle = {Proceedings of the 2013 ACM International Joint Conference on Pervasive and Ubiquitous Computing},
+    pages = {729–738},
+    numpages = {10},
+    keywords = {computer vision, activity recognition, accelerometers, sensor fusion, multi-modal dataset},
+    location = {Zurich, Switzerland},
+    series = {UbiComp '13}
+    }
+
+@INPROCEEDINGS{6909500,
+  author={H. {Kuehne} and A. {Arslan} and T. {Serre}},
+  booktitle={2014 IEEE Conference on Computer Vision and Pattern Recognition}, 
+  title={The Language of Actions: Recovering the Syntax and Semantics of Goal-Directed Human Activities}, 
+  year={2014},
+  volume={},
+  number={},
+  pages={780-787},
+  doi={10.1109/CVPR.2014.105}}
+

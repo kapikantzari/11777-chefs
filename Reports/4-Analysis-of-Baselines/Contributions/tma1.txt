@@ -1,0 +1,7 @@
+R4:
+
+- Modify existing I3D feature extraction scripts and extract features of P01-09
+- Write scripts for generating ground truths for the extracted features
+- Propose weighted cross-entropy loss
+- Train MSTCN and DTGRM
+- Participate in group discussion
