@@ -104,14 +104,15 @@ class BatchGenerator(object):
         batch_target = []
         for vid in batch:
             p_id = vid.split("_")[0]
-            feature_filename = os.path.join(self.features_path, p_id, '{}.npy'.format(vid.split('.')[0]))
-            # if not os.path.exists(feature_filename):
-                # print("ERROR: {} does not exist".format(feature_filename))
-                # return None,None,None
-            features = np.load(feature_filename)
-            features = features[:-1]
-            features = features.T
-            # print("Loading vid {}, and features.shape={}".format(vid,features.shape))
+            if p_id[0] == 'P':
+                feature_filename = os.path.join(self.features_path, p_id, '{}.npy'.format(vid.split('.')[0]))
+                features = np.load(feature_filename)
+                features = features[:-1]
+                features = features.T
+            else:
+                feature_filename = os.path.join(self.features_path, '{}.npy'.format(vid.split('.')[0]))
+                features = np.load(feature_filename)
+
             gt_filename = os.path.join(self.gt_path, '{}.txt'.format(vid))
             file_ptr = open(gt_filename, 'r')
             content = file_ptr.read().split('\n')[:-1]
@@ -120,7 +121,7 @@ class BatchGenerator(object):
             classes = np.zeros(min(np.shape(features)[1], len(content)))
             for i in range(len(classes)):
                 classes[i] = self.actions_dict[content[i]]
-            batch_input .append(features[:, ::self.sample_rate])
+            batch_input.append(features[:, ::self.sample_rate])
             batch_target.append(classes[::self.sample_rate])
 
         length_of_sequences = [len(seq) for seq in batch_target]

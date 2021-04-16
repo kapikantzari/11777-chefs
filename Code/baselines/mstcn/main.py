@@ -54,6 +54,8 @@ bz = args.batch_size
 lr = args.lr
 num_epochs = args.num_epochs
 sample_rate = 1
+if dataset == '50salads':
+    sample_rate = 2
 scheduler_step = args.scheduler_step
 scheduler_gamma = args.scheduler_gamma
 visualize_every = args.visualize_every
@@ -177,7 +179,15 @@ else:
     for a in actions:
         actions_dict[a.split()[1]] = int(a.split()[0])
 
+    rrev_dict = dict()
+    for k,v in actions_dict.items():
+        rrev_dict[v] = k
+
     num_classes = len(actions_dict)
+    if dataset == 'gtea':
+        background_class_idx = 10
+    else:
+        background_class_idx = -1
 
 model_dir = os.path.join(args.root_dir, 'models')
 results_dir = os.path.join(args.root_dir, 'results')
