@@ -7,10 +7,11 @@ import os
 import matplotlib.pyplot as plt
 
 class BatchGenerator(object):
-    def __init__(self, num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots=10):
+    def __init__(self, num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, run_check_example_exist=False, num_subplots=10):
         self.list_of_examples = list()
         self.index = 0
         self.num_classes = num_classes
+        self.run_check_example_exist = run_check_example_exist
 
         self.actions_dict = actions_dict
         self.actions_dict_rev = rrev_dict
@@ -52,9 +53,8 @@ class BatchGenerator(object):
             if vid.split("_")[0] != 'P11':
                 no_p11.append(vid)
         self.list_of_examples = no_p11
-        # for p in self.list_of_examples:
-        #     print(p)
-        self.check_example_exist()
+        if self.run_check_example_exist:
+            self.check_example_exist()
         random.shuffle(self.list_of_examples)
         
     
@@ -87,18 +87,6 @@ class BatchGenerator(object):
     def next_batch(self, batch_size):
         batch = self.list_of_examples[self.index:self.index + batch_size]
         self.index += batch_size
-
-        # batch_input = []
-        # batch_target = []
-        # for vid in batch:
-        #     features = np.load(self.features_path + vid.split('.')[0] + '.npy')
-        #     file_ptr = open(self.gt_path + vid, 'r')
-        #     content = file_ptr.read().split('\n')[:-1]
-        #     classes = np.zeros(min(np.shape(features)[1], len(content)))
-        #     for i in range(len(classes)):
-        #         classes[i] = self.actions_dict[content[i]]
-        #     batch_input .append(features[:, ::self.sample_rate])
-        #     batch_target.append(classes[::self.sample_rate])
 
         batch_input = []
         batch_target = []

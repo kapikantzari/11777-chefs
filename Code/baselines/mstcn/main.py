@@ -14,8 +14,7 @@ import numpy as np
 import wandb
 
 vocab_subset = {'cooking': [0, 1, 2, 7, 9, 10, 13, 14, 15, 16, 18, 19, 21, 22, 23, 25, 26, 28, 34, 35, 36, 39, 42, 43,  45, 46, 47, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 63, 66, 69, 75, 76, 77, 80, 81, 82, 83, 84, 90, 92, 93, 95, 96], 'salad': [46, 7, 19, 1, 82, 10, 92]}
-wandb.init(project='mstcn_v2', entity='chefs')
-wandb_run_name = wandb.run.name
+
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True
@@ -24,6 +23,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--action', default='train')
 parser.add_argument('--dataset', default="epic_kitchen")
 # parser.add_argument('--split', default='1')
+parser.add_argument('--wandb_name', default="mstcn_v2")
 
 parser.add_argument('--root_dir', help="root directory of all data and annotations")
 parser.add_argument('--background_name', default="background", help="what verb to call the background verb, default as background")
@@ -44,6 +44,9 @@ parser.add_argument('--train_file_name', type=str, default='train.txt')
 parser.add_argument('--val_file_name', type=str, default='validation.txt')
 
 args = parser.parse_args()
+
+wandb.init(project=args.wandb_name, entity='chefs')
+wandb_run_name = wandb.run.name
 
 dataset = args.dataset
 num_stages = args.num_stages
@@ -204,13 +207,15 @@ if args.action == "train":
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
+    batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, run_check_example_exist=False, num_subplots=num_subplots)
     batch_gen.read_data(vid_list_file)
-    batch_gen.check_example_exist()
+    if dataset == 'epic_kitchen':
+        batch_gen.check_example_exist()
 
-    val_batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
+    val_batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, run_check_example_exist=False, num_subplots=num_subplots)
     val_batch_gen.read_data(vid_list_file_tst)
-    val_batch_gen.check_example_exist()
+    if dataset == 'epic_kitchen':
+        val_batch_gen.check_example_exist()
     
     trainer.train(model_dir, batch_gen, val_batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device, scheduler_step=scheduler_step, scheduler_gamma=scheduler_gamma)
 
