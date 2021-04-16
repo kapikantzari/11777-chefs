@@ -22,7 +22,7 @@ torch.backends.cudnn.deterministic = True
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--action', default='train')
-# parser.add_argument('--dataset', default="epic_kitchen")
+parser.add_argument('--dataset', default="epic_kitchen")
 # parser.add_argument('--split', default='1')
 
 parser.add_argument('--root_dir', help="root directory of all data and annotations")
@@ -45,6 +45,7 @@ parser.add_argument('--val_file_name', type=str, default='validation.txt')
 
 args = parser.parse_args()
 
+dataset = args.dataset
 num_stages = args.num_stages
 num_layers = args.num_layers
 num_f_maps = args.num_f_maps
@@ -76,6 +77,7 @@ config.visualize_every = visualize_every
 config.filter_background = filter_background
 config.train_file_name = train_file_name
 config.val_file_name = val_file_name
+config.dataset = dataset
 
 # vid_list_file = "./data/"+args.dataset+"/splits/train.split"+args.split+".bundle"
 # vid_list_file_tst = "./data/"+args.dataset+"/splits/test.split"+args.split+".bundle"
@@ -107,64 +109,75 @@ features_path = os.path.join(args.root_dir, 'features')
 gt_path = os.path.join(args.root_dir, 'groundTruth')
 color_path = os.path.join(args.root_dir, 'color.txt')
 
-action_dict_file = os.path.join(args.root_dir, 'action_dictionary.pkl')
-actions_dict = None
-with open(action_dict_file, 'rb') as f:
-    actions_dict = pickle.load(f)
+if dataset == 'epic_kitchen':
+    action_dict_file = os.path.join(args.root_dir, 'action_dictionary.pkl')
+    actions_dict = None
+    with open(action_dict_file, 'rb') as f:
+        actions_dict = pickle.load(f)
 
 
-background_class_idx = -1
+    background_class_idx = -1
 
-rev_dict_file = os.path.join(args.root_dir, 'verb.txt')
-rev_dict = {}
-file_ptr = open(rev_dict_file, 'r')
-action_name_list = file_ptr.read().split('\n')[:-1]
-file_ptr.close()
-for name_idx, name in enumerate(action_name_list):
-    rev_dict[name] = name_idx
+    rev_dict_file = os.path.join(args.root_dir, 'verb.txt')
+    rev_dict = {}
+    file_ptr = open(rev_dict_file, 'r')
+    action_name_list = file_ptr.read().split('\n')[:-1]
+    file_ptr.close()
+    for name_idx, name in enumerate(action_name_list):
+        rev_dict[name] = name_idx
 
-if args.vocab_subset != None:
-    temp_map = {}
-    for i, idx in enumerate(vocab_subset[args.vocab_subset]):
-        temp_map[idx] = i
+    if args.vocab_subset != None:
+        temp_map = {}
+        for i, idx in enumerate(vocab_subset[args.vocab_subset]):
+            temp_map[idx] = i
 
-    max_val = np.max(list(temp_map.values()))
-    bg_cls = max_val + 1
+        max_val = np.max(list(temp_map.values()))
+        bg_cls = max_val + 1
 
-    for k, v in actions_dict.items():
-        if v not in vocab_subset[args.vocab_subset]:
-            actions_dict[k] = bg_cls
-        else:
-            actions_dict[k] = temp_map[v]
-    actions_dict[args.background_name] = bg_cls
+        for k, v in actions_dict.items():
+            if v not in vocab_subset[args.vocab_subset]:
+                actions_dict[k] = bg_cls
+            else:
+                actions_dict[k] = temp_map[v]
+        actions_dict[args.background_name] = bg_cls
 
-    for k, v in rev_dict.items():
-        if v not in vocab_subset[args.vocab_subset]:
-            rev_dict[k] = bg_cls
-        else:
-            rev_dict[k] = temp_map[v]
-    rev_dict[args.background_name] = bg_cls
+        for k, v in rev_dict.items():
+            if v not in vocab_subset[args.vocab_subset]:
+                rev_dict[k] = bg_cls
+            else:
+                rev_dict[k] = temp_map[v]
+        rev_dict[args.background_name] = bg_cls
 
-    rrev_dict = {}
-    for k,v in rev_dict.items():
-        rrev_dict[v] = k
-    
-    background_class_idx = bg_cls
+        rrev_dict = {}
+        for k,v in rev_dict.items():
+            rrev_dict[v] = k
+        
+        background_class_idx = bg_cls
 
-else:
+    else:
+        max_val = np.max(list(actions_dict.values()))
+        actions_dict[args.background_name] = max_val+1
+
+        rev_dict[args.background_name] = max_val+1
+        rrev_dict = {}
+        for k,v in rev_dict.items():
+            rrev_dict[v] = k
+        
+        background_class_idx = max_val+1
+
     max_val = np.max(list(actions_dict.values()))
-    actions_dict[args.background_name] = max_val+1
+    num_classes = max_val+1
+    print("Num classes: ", num_classes)
+else:
+    mapping_file = os.path.join(args.root_dir, 'mapping.txt')
+    file_ptr = open(mapping_file, 'r')
+    actions = file_ptr.read().split('\n')[:-1]
+    file_ptr.close()
+    actions_dict = dict()
+    for a in actions:
+        actions_dict[a.split()[1]] = int(a.split()[0])
 
-    rev_dict[args.background_name] = max_val+1
-    rrev_dict = {}
-    for k,v in rev_dict.items():
-        rrev_dict[v] = k
-    
-    background_class_idx = max_val+1
-
-max_val = np.max(list(actions_dict.values()))
-num_classes = max_val+1
-print("Num classes: ", num_classes)
+    num_classes = len(actions_dict)
 
 model_dir = os.path.join(args.root_dir, 'models')
 results_dir = os.path.join(args.root_dir, 'results')
