@@ -1,0 +1,2 @@
+1. Verify howto100m text retrieval results
+2. Work on proposed method video-text matching section, and roi visual feature section
