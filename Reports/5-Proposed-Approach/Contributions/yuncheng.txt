@@ -1,0 +1,5 @@
+R5:
+
+- 2D/3D feature extractions
+- work on adapting howto100m retrieval models
+- write video-text matching section in the report
