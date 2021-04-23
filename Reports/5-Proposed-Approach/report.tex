@@ -1,0 +1,150 @@
+% File project.tex
+%% Style files for ACL 2021
+\documentclass[11pt,a4paper]{article}
+\usepackage[hyperref]{acl2021}
+\usepackage{times}
+\usepackage{booktabs}
+\usepackage[draft]{todonotes}
+\usepackage{latexsym}
+% \usepackage[demo]{graphicx}
+\usepackage{subcaption}
+\usepackage[title]{appendix}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{indentfirst}
+\usepackage{xcolor}
+\usepackage{natbib}
+
+
+% \usepackage{subfig}
+\renewcommand{\UrlFont}{\ttfamily\small}
+
+
+% Packages for collaborative annotations
+\usepackage{comment}
+%\usepackage[draft]{todonotes}
+% This is not strictly necessary, and may be commented out,
+% but it will improve the layout of the manuscript,
+% and will typically save some space.
+\usepackage{microtype}
+
+\aclfinalcopy 
+
+\newcommand\BibTeX{B\textsc{ib}\TeX}
+
+\title{11-777 Spring 2021 Class Project}
+
+\author{
+  Yun Cheng\thanks{\hspace{4pt}Everyone Contributed Equally -- Alphabetical order} \hspace{2em} Yuxuan Liu$^*$ \hspace{2em} Tiffany Ma$^*$ \hspace{2em} Erin Zhang$^*$ \\
+  \texttt{\{yuncheng, yuxuanli, tma1, xiaoyuz1\}@andrew.cmu.edu}
+}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+Template for 11-777 Reports using the ACL 2021 Style File 
+\end{abstract}
+
+\section{Introduction and Problem Definition}
+
+% \begin{figure}
+% \missingfigure[figwidth=\linewidth]{This is a simple example/demonstration figure that explains your task and insight}
+% \end{figure}
+
+\clearpage
+\input{related_work}
+
+\clearpage
+
+\section{Task Setup and Data (1 page)}
+The main task is to segment egocentric (first-person) cooking videos from EPIC-KITCHENS dataset into action-object pairs. Given a video clip in the form of a sequence of frames, we want to identify the type of actions as well as their start and end time in the given video.
+
+
+\subsection{Dataset}
+% left out the word extended because we never mentioned EPIC-KITCHEN-55 %
+We use the largest egocentric (first-person) dataset  EPIC-KITCHENS-100, which features 100 hours, 700 variable-length videos with 90K actions of 37 participants \cite{Damen2020RESCALING}. Compared to YouTube-based datasets such as HowTo100M \cite{miech19howto100m}, EPIC-KITCHENS contains activities that are non-scripted and thus capture more natural settings such as parallel tasking . The egocentric view provides a unique perspective on people-object interactions, attention, and intention. Meanwhile, it also imposes extra challenges compared to third-person datasets like YouCook2 \cite{ZhXuCoAAAI18}. One of the challenges is that certain actions, such as eating and drinking, cannot be directly observed due to the limited field of view. Other challenges include unseen participants, unseen cooking actions, frame noises from different sources (i.e. background and lighting), long videos with many action instances, fragmentation of segments resulted from interleaving actions in multi-tasking, and weaker temporal correlations in objects interfering the correlations in actions.
+
+\subsection{Task formulation}
+There are two input modalities: video frames of egocentric cooking scenes and narrations describing the action in the scenes. The narrations are transcribed from the audio in the form of imperative phrases: verb-noun with optional propositional phrase. The goal is to predict a verb class as well as a noun class for each frame to identify the action in the segments. Afterwards, we combine the two classes into a tuple as the final output class label. 
+
+Formally, the visual input consists of a sequence of $M$ RGB frames in temporal order, denoted as $F=(\mathbf{f}_i)_{i=1}^M$. The RGB frames are sampled from untrimmed videos at a rate of 50 frames per second. The textual input is a sequence of $N$ audio-transcribed narrations in temporal order, denoted as $C=(\mathbf{c}_i)_{i=1}^N$. Our goal is to infer the action-object class label for each frame. The ground truth is given by $Y=(\mathbf{y}_i)_{i=1}^M$. Each $\mathbf{y}_i\in\{0,1\}^K\times\{0,1\}^L$ is a tuple of one-hot vectors encoding the true verb and noun class, where $K$ is the number of verb classes and $L$ is the number of noun classes.
+
+
+\input{dataset_statistic.tex}
+
+
+\subsection{Metrics}
+\input{metrics.tex}
+
+
+\clearpage
+\section{Models (2 pages)}
+
+\subsection{Baselines}
+
+\input{baselines}
+
+\subsection{Proposed Approach}
+\input{proposed_approach}
+
+\clearpage
+\begin{table}[t]
+\begin{center}
+    \begin{minipage}[b]{1\textwidth}
+\begin{tabular}{lrrrrrr}
+\toprule
+& \multicolumn{3}{c}{Train} & \multicolumn{3}{c}{Test}\\
+Methods  & Acc & Edit & F1$@\{10,25,50\}$ & Acc & Edit & F1$@\{10,25,50\}$ \\
+\midrule
+FC  & 44.00 & 26.71 & 12.42~~22.64~~19.40 & 34.90 & 18.58 & 17.47~~13.66~~8.04\\
+% EDTCN \cite{8099596} & & & & & & \\
+MS-TCN \cite{8953830} & 43.52 & & & 38.65 & & \\
+% RNN+HMM \cite{8099623} & & & & & & \\
+DTGRM \cite{wang2020temporal} & 52.58 & & & 37.71 & & \\
+\midrule
+Proposed Method             & & & & \\
+\bottomrule
+\end{tabular}
+\caption{Results of baseline models}
+\label{table:results}
+\end{minipage}
+\end{center}
+\end{table}
+\section{Results (1 page)}
+The columns above are just examples that should be expanded to include all metrics and baselines.
+
+\clearpage
+\section{Analysis (2 pages)}
+In this section, we will analyze the baseline models. In particular, since the baselines have not been evaluated on EPIC-KITCHENS previously, we conduct several ablation experiments to access the complexity of our dataset compared to other benchmark datasets used in the original papers of these models.
+\subsection{Analysis of Baselines}
+
+\input{baseline_results}
+
+
+\subsection{Ablations and Their Implications}
+
+\input{ablations}
+
+\input{baseline_qualitative}
+
+
+
+% Please use 
+\bibliographystyle{acl_natbib}
+\bibliography{references}
+
+\clearpage
+
+\begin{appendices}
+\section{Data Analysis}
+\label{appendix:A}
+\input{appendix-dataset-analysis}
+
+\end{appendices}
+
+
+
+\end{document}
