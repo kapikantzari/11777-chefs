@@ -55,3 +55,27 @@ Meanwhile, existing methods aim to learn better temporal relationships among fra
 Without extensive training and fine-tuning, when evaluated on recall metrics, R$@\{1,5,10\}$, the projection model gives comparable result as in the original pretrained HowTo100M model on image-text retrieval of the MSR-VTT dataset. However, the retrieval happens between videos and texts of the same batch; if we project all action verbs to the embedding space and rank which verb is the closest to a given video segment, the result is less desirable. Therefore, learning a good joint embedding space will be the biggest challenge of our method, especially given that we pre-tested with segments extracted from a video with ground truth start and end frame. Furthermore, the matching results are likely to be largely dependent on the initial segmentation. If the output from MSTCN is too noisy, which is very likely at the beginning stage of training, the video-text matching model might end up mapping all ambiguous segments, which contain a mix of parts from different actions, to a space that is equidistant away from all word embeddings of the action verbs. A potential solution to this issue may be to train MSTCN for a few epochs for a more stabilized and credible segmentation before adding in the video-text matching model to better guide classification.
 
 We will also attempt to use the more meaningful, full annotation phrase in the form of (verb, noun) pair in the video-text matching. We expect this to create further challenge, one of which is the joint embedding may focus on clustering based on the objects rather than the actions. For example, if we have four segments corresponding to \textit{take apple}, \textit{take banana}, \textit{put-down apple}, \textit{put-down banana}, despite ideally we want \textit{take apple} and \textit{take banana} to be closer, it is possible that \textit{take apple} and \textit{put-down apple} segments are closer since the manipulated objects \textit{apple} and \textit{banana} are more ``visible" in the video. In that way, the video-image matching model will not help with classifying actions. The non-descriptive nature of the annotations makes it difficult to learn a joint embedding space that separates segments of different actions.
+
+\subsubsection{Loss Function}
+\paragraph{Backbone} We use a combination of cross-entropy classification loss
+\begin{align*}
+    \mathcal{L}_c&=\frac{1}{M}\sum_{t=1}^M-\log(\mathbf{y}^*_{t,c})
+\end{align*}
+and truncated mean squared smoothing loss that aims to reduce over-segmentation errors as in \cite{8953830}
+\begin{align*}
+    \Delta_{t,c}&=|\log\mathbf{y}^*_{t,c}-\log\mathbf{y}^*_{t-1,c}|\\
+    \Tilde{\Delta}_{t,c}&=\begin{cases}\Delta_{t,c} &\text{if $\Delta_{t,c}\le\tau$}\\\tau &\text{otherwise}\end{cases}\\
+    \mathcal{L}_s&=\frac{1}{MK}\sum_{t,c}\Tilde{\Delta}^2_{t,c}
+\end{align*}
+where $M$ is the number of frames, $K$ is the number of action classes, $\mathbf{y}^*_{t,c}$ is the output probability of action class $c$ of frame $t$. We use $\tau=4,\lambda=0.15$ as in the original experiment. The final loss function is given as the sum of loss at each stage of temporal convolution
+\begin{align*}
+    \mathcal{L}_{stage}&=\mathcal{L}_c+\lambda\mathcal{L}_s\\
+    \mathcal{L}&=\sum_{stage}\mathcal{L}_{stage}
+\end{align*}
+
+\paragraph{Video-Text Matching} The joint embedding is trained separately using the max-margin ranking loss as in \cite{miech19howto100m}. The loss is given by
+\begin{align*}
+    \sum_{i\in\mathcal{B}}\sum_{j\in N(i)}\max(0,\delta&+s_{i,j}-s_{i,i})\\
+    &+\max(0,\delta+s_{j,i}-s_{i,i})
+\end{align*}
+where $\mathcal{B}$ is a mini-batch sample of segments-verb training pairs, $s$ is the similarity score matrix of all training pairs, $N(i)$ denotes the set of negative pairs for pair $i$ and $\delta$ is the margin. We fix $\delta=0.1$ as in the original experiment.
