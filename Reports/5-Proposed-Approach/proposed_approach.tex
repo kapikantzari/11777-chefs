@@ -59,15 +59,15 @@ We will also attempt to use the more meaningful, full annotation phrase in the f
 \subsubsection{Loss Function}
 \paragraph{Backbone} We use a combination of cross-entropy classification loss
 \begin{align*}
-    \mathcal{L}_c&=\frac{1}{M}\sum_{t=1}^M-\log(\mathbf{y}^*_{t,c})
+    \mathcal{L}_c&=\frac{1}{M}\sum_{t=1}^M-\log(\hat{\mathbf{y}}^*_{t,c})
 \end{align*}
 and truncated mean squared smoothing loss that aims to reduce over-segmentation errors as in \cite{8953830}
 \begin{align*}
-    \Delta_{t,c}&=|\log\mathbf{y}^*_{t,c}-\log\mathbf{y}^*_{t-1,c}|\\
+    \Delta_{t,c}&=|\log\hat{\mathbf{y}}^*_{t,c}-\log\hat{\mathbf{y}}^*_{t-1,c}|\\
     \Tilde{\Delta}_{t,c}&=\begin{cases}\Delta_{t,c} &\text{if $\Delta_{t,c}\le\tau$}\\\tau &\text{otherwise}\end{cases}\\
     \mathcal{L}_s&=\frac{1}{MK}\sum_{t,c}\Tilde{\Delta}^2_{t,c}
-\end{align*}
-where $M$ is the number of frames, $K$ is the number of action classes, $\mathbf{y}^*_{t,c}$ is the output probability of action class $c$ of frame $t$. We use $\tau=4,\lambda=0.15$ as in the original experiment. The final loss function is given as the sum of loss at each stage of temporal convolution
+ \end{align*}
+where $M$ is the number of frames, $K$ is the number of action classes, $\hat{\mathbf{y}}^*_{t,c}$ is the output probability of action class $c$ of frame $t$. We use $\tau=4,\lambda=0.15$ as in the original experiment. The final loss function is given as the sum of loss at each stage of temporal convolution
 \begin{align*}
     \mathcal{L}_{stage}&=\mathcal{L}_c+\lambda\mathcal{L}_s\\
     \mathcal{L}&=\sum_{stage}\mathcal{L}_{stage}
