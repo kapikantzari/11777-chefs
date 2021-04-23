@@ -45,7 +45,7 @@ where $\phi(\mathbf{v}_i)$ is extracted feature of segment $\mathbf{v}_i$ and $\
 \[
     \mathbf{y}^*_i=\text{argmax}_{\mathbf{c}_j\in \mathcal{C}_m} h(\mathbf{v}_i, \mathbf{c}_j) + \beta s(\mathbf{v}_i,\mathbf{c}_j)
 \]
-where $\beta$ is a positive hyper-parameter that weights the output scores of the two models. We output $(\mathbf{y}^*_i)_{i\in s_i^{3D}}$ as new labels for segment $i,i\in[t]$.
+where $\beta$ is a positive hyper-parameter that weights the output scores of the two models. We output $(\hat{\mathbf{y}}^*_{i,c})$ as the classification probability of frame $i$ as action $c$ based on the similarity score and $(\mathbf{y}^*_i)_{i\in s_i^{3D}}$ as new labels for segment $i,i\in[t]$.
 
 \subsubsection{Novelty and Challenges}
 While most existing action segmentation methods work purely with video input, our approach is the first attempt to action segmentation in the multimodal setting. In particular, we exploits the semantic meaning of the text annotations to improve performance. Moreover, most action segmentation methods evaluate on smaller and simpler datasets, while EPIC-KITCHENS that we attempt is comparably much larger and more complex.
