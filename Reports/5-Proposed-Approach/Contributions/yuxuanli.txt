@@ -1,0 +1,3 @@
+- Performed feature extraction for 2D and 3D features
+- Proposed to use Howto100m for video-text retrieval and cross-attention to boost the performance
+- Tested and fine-tuned the pretrained retrieval model
