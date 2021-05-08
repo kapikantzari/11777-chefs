@@ -1,0 +1,81 @@
+% It is relatively difficult for MSTCN to start learning the class of each input feature early: at the beginning, it naturally tries to predict the most frequent verbs in the dataset because of the use of cross-entropy loss. 
+% Why Slow-Fast. 
+% Following the paper [slow-fast], which proposes a two stream approach, where the fast branch tries to capture motions in the segments and getting a general sense of how objects move in the scene,  
+% The intuition is that the objects in view are signature  
+
+% What about your approach is difficult?
+
+% What about your approach is uniquely multimodal?
+
+% What kinds of issues will you likely run into that are caused by it being multimodal? (e.g. the types of things we’ve discussed in class about training, fusion, spurious correlations, etc)
+
+% Can you motivate why those are likely to be issues?
+
+% Do you have thoughts/ideas/preliminary steps on how to mitigate those issues to be successful?
+
+Experiments on baseline models have demonstrated that one major issue with the pre-existing action segmentation methods like MSTCN on EPIC-KITCHENS dataset is to correctly classify the actions of each segment since EPIC-KITCHENS has much more diverse action classes than other datasets \cite{5995444, 10.1145/2493432.2493482, 6909500} that the baselines have evaluated on. Therefore, our proposed method utilizes MSTCN as a backbone model assisted by region of interest visual feature extraction and improves classification with an extra video-text matching component.
+
+\subsubsection{Region of Interest Visual Feature Extraction}
+As discussed earlier, one potential problem with the EPIC-KITCHENS dataset is the imbalance in the representation of visual and textual data. While the visual data contains both rich spatial and temporal information, the short verb-noun phrases provide very limited context to build an equally-representative textual space. To account for this imbalance, we assist the video-text embedding by providing visual inputs that aligns with the verb-noun annotations: we extract specific regions in the visual frames that represent actions and/or objects. 
+
+The SlowFast network \cite{feichtenhofer2019slowfast} consists of two streams of feature extractions: the Fast pathway focuses on extracting temporal information across a set of densely sampled frames, while the Slow pathway focuses on representing spatial semantics with high channel capacity and low temporal rate. Moreover, we want to incorporate region of interest (RoI) proposals into the feature extraction procedure such that we extract features of specific objects and actions and discard additional context such as background since textual information lacks additional context. Instead of passing in the full-resolution frame into the SlowFast network, we pass in sub-parts of the frame as proposed by Region Of Interest (RoI) models, thereby extracting object-specific or action-specific visual features. 
+
+\subsubsection{Backbone Model}
+We use the original implementation of MSTCN in \newcite{8953830} as the backbone model since experiments on baselines show that it performs relatively well on finding action boundaries. The inputs to the backbone model are the RoI visual features extracted from the SlowFast network. Given the feature vectors $(\mathbf{x}_1,\dots,\mathbf{x}_M)$ of a video, the model outputs an initial segmentation $(\hat{\mathbf{y}}_1,\dots,\hat{\mathbf{y}}_M)$ where $M$ is the number of frames and $\hat{\mathbf{y}}_i$ is the action class label of the predicted verb of frame $i$.
+
+
+\subsubsection{Video-Text Matching}
+
+Since misclassification is one of the prominent issue in the baseline experiments, our proposed solution utilizes an enriched, pretrained video-text embedding to improve the labeling. We first extracted frame-level and video-level features similarly as in \newcite{miech19howto100m}. 2D features are extracted with the ImageNet pre-trained Resnet-152 \cite{7780459} at the rate of about 1 FPS, and 3D features are extracted with the Kinetics \cite{8099985} pre-trained ResNeXt-101 16-frames model \cite{8578783} to obtain about 0.78 feature per second. Denote the 2D features as $(\mathbf{x}^{2D}_1,\dots,\mathbf{x}^{2D}_{M_{2D}})$ and the 3D features as $(\mathbf{x}^{3D}_1,\dots,\mathbf{x}^{3D}_{M_{3D}})$ where $\mathbf{x}^{2D}_i,\mathbf{x}^{3D}_i\in\mathbb{R}^{2048}$.
+Given an initial segmentation result produced by the backbone model $(\hat{\mathbf{y}}_1,\dots,\hat{\mathbf{y}}_M)$, we first find the set of frame indexes corresponding to segment $i$ as $(s_i^{2D})_{i=1}^t$ and $(s_i^{3D})_{i=1}^t$ respectively, where $t$ is the number of segments, then we aggregate the features of one segment using temporal maxpooling and concatenate 2D and 3D features to form a single 4096-dimensional feature vector
+\begin{align*}
+    \mathbf{v}^{2D}&=maxpool(\{\mathbf{x}_j^{2D}\}_{j\in s_i^{2D}})\\
+    \mathbf{v}^{3D}&=maxpool(\{\mathbf{x}_j^{3D}\}_{j\in s_i^{3D}})\\
+    \mathbf{v}_i&=concat(\mathbf{v}^{2D},\mathbf{v}^{3D})
+\end{align*}
+Similar to \newcite{miech19howto100m}, we also use the GoogleNews pre-trained word2vec embedding model to obtain a word embedding $\mathbf{c}_i$ for each verb $i$ (96 $c_i$ if using actions for each action category, $977$ $c_i$ if differentiating among actions within the same action category). We then transform $\mathbf{v}_i,\mathbf{c}_i$ using the learned projection function finetuned on EPIC-KITCHENS $f:\mathbb{R}^{2048}\to\mathbb{R}^d,g:\mathbb{R}^{2048}\to\mathbb{R}^d$ where $d$ is the dimension of the common video-text embedding space. Finally, we perform video-text matching between a segment $\mathbf{v}_i$ and every verb $\mathbf{c}_i$ by computing the cosine similarity score as
+\[s(\mathbf{v}_i,\mathbf{c}_j)=\frac{\langle f(\mathbf{v}_i),g(\mathbf{c}_j)\rangle}{\|f(\mathbf{v}_i)\|_2\|g(\mathbf{c}_j)\|_2}\]
+which is high when the action $\mathbf{c}_j$ is likely to take place in the segment represented by $\mathbf{v}_i$.
+
+\subsubsection{Improve Video-Text Matching with Cross-Modal Attention}
+The above describes a dual encoder model that independently maps text and video to a joint embedding. It has the advantage in scalability as it can results in efficient evaluation during test time. However, as \newcite{miech2021thinking} points out, it has limited accuracy since the simple dot product is unlikely to capture the complex vision-text interactions. Analogous to how human perform video-text retrieval, one solution is to roughly select a few promising candidates then do fine-grained search for the best candidate by paying more \emph{attention} to visual details. Therefore, we adapt the \emph{Fast} and \emph{Slow} models of \newcite{miech2021thinking} in which the \emph{fast} dual encoder quickly eliminates candidates with low relevance while the \emph{slow} cross-attention model improves retrieval performance with grounding. Given an input segment $\mathbf{v}_i$, we perform retrieval by searching for an action class $\mathbf{c}_j$ such that segment $\mathbf{v}_i$ is most likely to decode action class $\mathbf{c}_j$. Specifically, given segment and action class pair $(\mathbf{v}_i, \mathbf{c}_j)$, we compute their similarity by \[
+    h(\mathbf{v}_i, \mathbf{c}_j) = \log (p(\mathbf{c}_j|\phi(\mathbf{v}_i);\theta))
+\]
+where $\phi(\mathbf{v}_i)$ is extracted feature of segment $\mathbf{v}_i$ and $\theta$ is the parameters of the transformer model. To combine results from dual encoder model and cross-attention model, given input segment $\mathbf{v}_i$ and action class set $\mathcal{C}$ containing $K$ action classes. we first obtain a subset of $m$ action classes $\mathcal{C}_m$ (where $m \ll K$) that have the highest score according to the fast dual encoder model. We then retrieve the final top ranked action class by re-ranking the candidates using the cross attention model:
+\[
+    \mathbf{y}^*_i=\text{argmax}_{\mathbf{c}_j\in \mathcal{C}_m} h(\mathbf{v}_i, \mathbf{c}_j) + \beta s(\mathbf{v}_i,\mathbf{c}_j)
+\]
+where $\beta$ is a positive hyper-parameter that weights the output scores of the two models. We output $(\hat{\mathbf{y}}^*_{i,c})$ as the classification probability of frame $i$ as action $c$ based on the similarity score and $(\mathbf{y}^*_i)_{i\in s_i^{3D}}$ as new labels for segment $i,i\in[t]$.
+
+\subsubsection{Novelty and Challenges}
+While most existing action segmentation methods work purely with video input, our approach is the first attempt to action segmentation in the multimodal setting. In particular, we exploits the semantic meaning of the text annotations to improve performance. Moreover, most action segmentation methods evaluate on smaller and simpler datasets, while EPIC-KITCHENS that we attempt is comparably much larger and more complex.
+
+Meanwhile, existing methods aim to learn better temporal relationships among frames that are close together or far away from each other. For example, MSTCN uses dilated convoltuion and MSTCN++ improves with two branches of dilated convolutions each with a different dilation factor; DTGRM contains layers of graphs with nodes spanning neighborhoods of different sizes. These models, by surveying frames across time and learning temporal relationships, aim to differentiate between frames from the same action versus those from different actions. The intuition behind our method, however, is that an action verb, such as \textit{take}, represents a very generic idea that could correspond to a large number of video segments with different contexts that are confounding factors: the specific objects that \textit{take} happens on, other irrelevant objects in the scene, the background of the kitchen, or the way a \textit{take} action takes place. Therefore, if the video-text matching model can make all video segments of \textit{take} clustering around the word \textit{take} in the joint embedding, then it will eliminate the distractions from intraclass variation within the category \textit{take}.
+
+Without extensive training and fine-tuning, when evaluated on recall metrics, R$@\{1,5,10\}$, the projection model gives comparable result as in the original pretrained HowTo100M model on image-text retrieval of the MSR-VTT dataset. However, the retrieval happens between videos and texts of the same batch; if we project all action verbs to the embedding space and rank which verb is the closest to a given video segment, the result is less desirable. Therefore, learning a good joint embedding space will be the biggest challenge of our method, especially given that we pre-tested with segments extracted from a video with ground truth start and end frame. Furthermore, the matching results are likely to be largely dependent on the initial segmentation. If the output from MSTCN is too noisy, which is very likely at the beginning stage of training, the video-text matching model might end up mapping all ambiguous segments, which contain a mix of parts from different actions, to a space that is equidistant away from all word embeddings of the action verbs. A potential solution to this issue may be to train MSTCN for a few epochs for a more stabilized and credible segmentation before adding in the video-text matching model to better guide classification.
+
+We will also attempt to use the more meaningful, full annotation phrase in the form of (verb, noun) pair in the video-text matching. We expect this to create further challenge, one of which is the joint embedding may focus on clustering based on the objects rather than the actions. For example, if we have four segments corresponding to \textit{take apple}, \textit{take banana}, \textit{put-down apple}, \textit{put-down banana}, despite ideally we want \textit{take apple} and \textit{take banana} to be closer, it is possible that \textit{take apple} and \textit{put-down apple} segments are closer since the manipulated objects \textit{apple} and \textit{banana} are more ``visible" in the video. In that way, the video-image matching model will not help with classifying actions. The non-descriptive nature of the annotations makes it difficult to learn a joint embedding space that separates segments of different actions.
+
+\subsubsection{Loss Function}
+\paragraph{Backbone} We use a combination of cross-entropy classification loss
+\begin{align*}
+    \mathcal{L}_c&=\frac{1}{M}\sum_{t=1}^M-\log(\hat{\mathbf{y}}^*_{t,c})
+\end{align*}
+and truncated mean squared smoothing loss that aims to reduce over-segmentation errors as in \cite{8953830}
+\begin{align*}
+    \Delta_{t,c}&=|\log\hat{\mathbf{y}}^*_{t,c}-\log\hat{\mathbf{y}}^*_{t-1,c}|\\
+    \Tilde{\Delta}_{t,c}&=\begin{cases}\Delta_{t,c} &\text{if $\Delta_{t,c}\le\tau$}\\\tau &\text{otherwise}\end{cases}\\
+    \mathcal{L}_s&=\frac{1}{MK}\sum_{t,c}\Tilde{\Delta}^2_{t,c}
+ \end{align*}
+where $M$ is the number of frames, $K$ is the number of action classes, $\hat{\mathbf{y}}^*_{t,c}$ is the output probability of action class $c$ of frame $t$. We use $\tau=4,\lambda=0.15$ as in the original experiment. The final loss function is given as the sum of loss at each stage of temporal convolution
+\begin{align*}
+    \mathcal{L}_{stage}&=\mathcal{L}_c+\lambda\mathcal{L}_s\\
+    \mathcal{L}&=\sum_{stage}\mathcal{L}_{stage}
+\end{align*}
+
+\paragraph{Video-Text Matching} The joint embedding is trained separately using the max-margin ranking loss as in \cite{miech19howto100m}. The loss is given by
+\begin{align*}
+    \sum_{i\in\mathcal{B}}\sum_{j\in N(i)}\max(0,\delta&+s_{i,j}-s_{i,i})\\
+    &+\max(0,\delta+s_{j,i}-s_{i,i})
+\end{align*}
+where $\mathcal{B}$ is a mini-batch sample of segments-verb training pairs, $s$ is the similarity score matrix of all training pairs, $N(i)$ denotes the set of negative pairs for pair $i$ and $\delta$ is the margin. We fix $\delta=0.1$ as in the original experiment.

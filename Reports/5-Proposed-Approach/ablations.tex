@@ -1,0 +1,10 @@
+
+
+\subsubsection{Video length}
+Variation of video length for EPIC-KITCHENS dataset is much higher than that of other datasets. The maximum video length is more than 1 hour while average is only 9 minute. To determine how video length affects performance of models, we divided the whole dataset into long videos that are longer than 10 minutes and short videos that are shorter than 10 minutes.  
+
+\subsubsection{Vocabulary size}
+EPIC-KITCHENS contains a total of 97 verb classes, which is much more than that of 50Salads and Breakfast, which contain 17 and 48 verb classes respectively. To see if richer verb class will affect the performance of the baseline models that are originally proposed for 50Salads and Breakfast, we select a subset from 97 verb classes containing 54 verb classes with higher correlation to cooking. The remaining verb classes are labeled as background. 
+% The training and testing result on the subset is shown in Table \ref{}.
+
+% TODO: include table/graph
