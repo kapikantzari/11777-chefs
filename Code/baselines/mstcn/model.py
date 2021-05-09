@@ -7,9 +7,13 @@ from torch import optim
 import copy
 import numpy as np
 import wandb
+import pickle
 from eval import single_eval_scores
 from visualize import visualize, plot_table
 import os 
+import torch
+import torch.nn.functional as F
+from model_howto100m import Net 
 
 loss_weight = [106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
        106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
@@ -62,7 +66,42 @@ class DilatedResidualLayer(nn.Module):
 
 
 class Trainer:
-    def __init__(self, wandb_run_name, num_blocks, num_layers, num_f_maps, dim, num_classes, background_class_idx, val_every=50, visualize_every=5, filter_background = False):
+    def __init__(self, args, wandb_run_name, num_classes, background_class_idx, device, val_every=50):
+        
+        self.args = args
+        num_blocks = args.num_stages
+        num_layers = args.num_layers
+        num_f_maps = args.num_f_maps
+        dim = args.features_dim
+        visualize_every = args.visualize_every
+        filter_background = args.filter_background
+        self.howto100m_text_filename = args.howto100m_text_filename
+        self.device = device
+
+        if self.args.predict_with_howto100m:
+            net = Net(
+                video_dim=4096,
+                embd_dim=6144,
+                we_dim=300,
+                n_pair=1,
+                max_words=20,
+                sentence_dim=-1,
+            )
+            pretrain_path = os.path.join(args.howto100m_model_dir)
+            net.load_checkpoint(pretrain_path)
+            self.howto100m_model = net.to(device)
+
+            text_embeddings = []
+            text_word_classes= []
+            for f in args.howto100m_text_dir:
+                with open(args.howto100m_text_dir, 'wb+') as f:
+                    embed, embed_verb_class = pickle.load(f) 
+                    text_embeddings.append(embed)
+                    text_word_classes.append(embed_verb_class)
+            
+            self.text_embeddings = torch.cat(text_embeddings, dim=0)
+            self.text_word_classes = np.hstack(text_word_classes)
+        
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
@@ -75,28 +114,55 @@ class Trainer:
         self.wandb_run_name = wandb_run_name
         print("===> Trainer with wandb run named as: ", self.wandb_run_name)
 
-        self.videos_to_visualize = ['P16_04', \
-            'P23_05', \
-            'P29_05', \
-            'P01_15',
-            'P05_07',
-            'P32_04',
-            'P26_39',
-            'P19_05',
-            'P01_11',
-            'P04_26',
-            'P04_32',
-            'P14_06',
-            'P19_05',
-            'P28_15',
-            'P07_17']
+        self.videos_to_visualize = ['P16_04', 'P23_05', 'P29_05', 'P01_15','P05_07','P32_04','P26_39','P19_05','P01_11','P04_26','P04_32','P14_06','P19_05','P28_15','P07_17']
 
         self.filter_background = filter_background
 
         self.cur_subplots = 0
 
-    def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, device, \
+    def predict_howto100m(self, predicted, f_2D, f_3D):
+        predicted_np = predicted.detach().cpu().numpy().flatten()
+        switch = np.where(predicted_np[1:] != predicted_np[:-1])[0]+1
+        
+        start_idx = np.append([0], switch)
+        end_idx = np.append(switch, len(predicted_np))
+        groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
+        
+        feat_3ds = []
+        feat_2ds = []
+        for start,end in groups:
+            if end - start < 1:
+                continue
+            feat_2d = np.amax(f_2D[int(np.floor(start*16/12)):int(np.ceil(end*16/12))],axis=0).reshape((1,-1))
+            feat_2ds.append(feat_2d)
+            feat_3d = np.amax(f_3D[start:end],axis=0).reshape((1,-1))
+            feat_3ds.append(feat_3d)
+        
+        segments_video_features = []
+        for feat_2d, feat_3d in zip(feat_2ds, feat_3ds):
+            feat_2d = F.normalize(torch.from_numpy(feat_2d).float(), dim=0)
+            feat_3d = F.normalize(torch.from_numpy(feat_3d).float(), dim=0)
+            segment = torch.cat((feat_2d, feat_3d), 1)
+            segments_video_features.append(segment)
+        video = torch.cat(segments_video_features, dim=0)
+        video = video.cuda()
+        video_feat = self.net.GU_video(video)
+        sim_matrix = torch.matmul(video_feat, self.text_embeddings.t()) #row: each video | column: each 
+        sim_matrix = sim_matrix.detach().cpu().numpy()
+        top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:100]
+        votes = self.text_word_classes[top_100_phrases]
+
+        def my_func(x):
+            unique_class, counts = np.unique(x, return_counts=True)
+            max_class = unique_class[np.argmax(counts)]
+            return max_class
+
+        predicted = np.apply_along_axis(my_func, 0, votes)
+        return predicted
+    
+    def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, \
         scheduler_step, scheduler_gamma):
+        device = self.device
         self.model.train()
         batch_gen.reset()
         
@@ -119,8 +185,13 @@ class Trainer:
                 self.model.to(device)
                 batch_count += 1
 
-                batch_input, batch_target, mask, _ = batch_gen.next_batch(batch_size)
-                batch_input, batch_target, mask = batch_input.to(device), batch_target.to(device), mask.to(device)
+                output_dict = batch_gen.next_batch(batch_size)
+                batch_input = output_dict['batch_input_tensor'].to(device)
+                batch_target = output_dict['batch_target_tensor'].to(device)
+                mask = output_dict['mask'].to(device)
+                f_3D = output_dict['f_3D']
+                f_2D = output_dict['f_2D']
+                
                 optimizer.zero_grad()
                 predictions = self.model(batch_input, mask)
 
@@ -139,6 +210,8 @@ class Trainer:
                 #     mask_bkg = batch_target >= 0
                 mask_bkg = batch_target != self.background_class_idx
                 _, predicted = torch.max(predictions[-1].data, 1)
+                if self.args.use_howto100m:
+                    predicted = self.predict_howto100m(predicted, f_3D, f_2D)
                 correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
                 correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
                 
@@ -180,7 +253,8 @@ class Trainer:
             
             print("Training: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples), float(correct)/total))
 
-    def evaluate(self, val_batch_gen, num_epochs, epoch, cnt, device, batch_size):
+    def evaluate(self, val_batch_gen, num_epochs, epoch, cnt, batch_size):
+        device = self.device
         self.model.eval()
 
         with torch.no_grad():
@@ -194,8 +268,13 @@ class Trainer:
 
             while val_batch_gen.has_next():
                 self.model.to(device)
-                batch_input, batch_target, mask, batch_video_ids = val_batch_gen.next_batch(batch_size)
-                batch_input, batch_target, mask = batch_input.to(device), batch_target.to(device), mask.to(device)
+                output_dict = val_batch_gen.next_batch(batch_size)
+                batch_input = output_dict['batch_input_tensor'].to(device)
+                batch_target = output_dict['batch_target_tensor'].to(device)
+                mask = output_dict['mask'].to(device)
+                f_3D = output_dict['f_3D']
+                f_2D = output_dict['f_2D']
+                batch_video_ids = output_dict['batch']
 
                 predictions = self.model(batch_input, mask)
 
@@ -207,6 +286,8 @@ class Trainer:
                 epoch_loss += loss.item()
                 mask_bkg = batch_target != self.background_class_idx
                 _, predicted = torch.max(predictions[-1].data, 1)
+                if self.args.use_howto100m:
+                    predicted = self.predict_howto100m(predicted, f_3D, f_2D)
                 correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
                 correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
                 total += torch.sum(mask[:, 0, :]).item()

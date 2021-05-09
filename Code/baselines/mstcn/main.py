@@ -42,7 +42,9 @@ parser.add_argument('--visualize_every', type=int, default=5)
 parser.add_argument('--filter_background', dest='filter_background', action='store_true', help='filter out background to calculate accuracy')
 parser.add_argument('--train_file_name', type=str, default='train.txt')
 parser.add_argument('--val_file_name', type=str, default='validation.txt')
-
+parser.add_argument('--use_howto100m', type=int, default=1)
+parser.add_argument('--howto100m_text_dir', nargs="+", default=[])
+parser.add_argument('--howto100m_model_dir', type=str, default="") #/raid/xiaoyuz1/EPIC/howto100m/model/howto100m_pt_model.pth
 args = parser.parse_args()
 
 num_stages = args.num_stages
@@ -76,30 +78,6 @@ config.visualize_every = visualize_every
 config.filter_background = filter_background
 config.train_file_name = train_file_name
 config.val_file_name = val_file_name
-
-# vid_list_file = "./data/"+args.dataset+"/splits/train.split"+args.split+".bundle"
-# vid_list_file_tst = "./data/"+args.dataset+"/splits/test.split"+args.split+".bundle"
-# features_path = "./data/"+args.dataset+"/features/"
-# gt_path = "./data/"+args.dataset+"/groundTruth/"
-
-# mapping_file = "./data/"+args.dataset+"/mapping.txt"
-
-# model_dir = "./models/"+args.dataset+"/split_"+args.split
-# results_dir = "./results/"+args.dataset+"/split_"+args.split
- 
-# if not os.path.exists(model_dir):
-#     os.makedirs(model_dir)
-# if not os.path.exists(results_dir):
-#     os.makedirs(results_dir)
-
-# file_ptr = open(mapping_file, 'r')
-# actions = file_ptr.read().split('\n')[:-1]
-# file_ptr.close()
-# actions_dict = dict()
-# for a in actions:
-#     actions_dict[a.split()[1]] = int(a.split()[0])
-
-# num_classes = len(actions_dict)
 
 vid_list_file = os.path.join(args.root_dir, train_file_name)
 vid_list_file_tst = os.path.join(args.root_dir, val_file_name)
@@ -174,7 +152,7 @@ if not os.path.exists(model_dir):
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
-trainer = Trainer(wandb_run_name, num_stages, num_layers, num_f_maps, features_dim, num_classes, background_class_idx, visualize_every=visualize_every, filter_background=filter_background)
+trainer = Trainer(args, wandb.run.name, num_classes, background_class_idx, device)
 if args.action == "train":
     seed = 1538574472
     random.seed(seed)
@@ -189,7 +167,7 @@ if args.action == "train":
     val_batch_gen.read_data(vid_list_file_tst)
     val_batch_gen.check_example_exist()
     
-    trainer.train(model_dir, batch_gen, val_batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, device=device, scheduler_step=scheduler_step, scheduler_gamma=scheduler_gamma)
+    trainer.train(model_dir, batch_gen, val_batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, scheduler_step=scheduler_step, scheduler_gamma=scheduler_gamma)
 
 # if args.action == "predict":
 #     trainer.predict(model_dir, results_dir, features_path, vid_list_file_tst, num_epochs, actions_dict, device, sample_rate)
