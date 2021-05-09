@@ -102,6 +102,10 @@ class Trainer:
             self.text_embeddings = self.text_embeddings.to(device)
             self.text_word_classes = np.hstack(text_word_classes)
             print("Trainer: text_embeddings.shape", self.text_embeddings.shape, self.text_word_classes.shape)
+
+            self.input_frames_per_feature = args.input_frames_per_feature
+            self.howto100m_frames_per_feature = args.howto100m_frames_per_feature
+            self.howto100m_ratio = self.howto100m_frames_per_feature /self.input_frames_per_feature
         
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
@@ -127,11 +131,14 @@ class Trainer:
         
         start_idx = np.append([0], switch)
         end_idx = np.append(switch, len(predicted_np))
-        groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
+        original_groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
+        groups_using_100m = (groups[:,1] - groups[:,0]) >= self.howto100m_ratio
+        groups = original_groups[groups_using_100m]
+        groups[:,0] = np.floor(groups[:,0] / self.howto100m_ratio)
+        groups[:,1] = np.ceil(groups[:,1] / self.howto100m_ratio)
 
-        start_2ds = np.floor(start_idx*16/12).astype(int)
+        start_2ds = np.floor(groups[:,0]*16/12).astype(int)
         assert np.all(start_2ds < len(f_2D))
-        groups = groups[start_2ds < len(f_2D)]
         
         feat_3ds = []
         feat_2ds = []
@@ -149,6 +156,7 @@ class Trainer:
             feat_3d = F.normalize(torch.from_numpy(feat_3d).float(), dim=0)
             segment = torch.cat((feat_2d, feat_3d), 1)
             segments_video_features.append(segment)
+        
         video = torch.cat(segments_video_features, dim=0)
         video = video.cuda()
         video_feat = self.howto100m_model.GU_video(video)
@@ -162,10 +170,19 @@ class Trainer:
             max_class = unique_class[np.argmax(counts)]
             return max_class
 
-        predicted = np.apply_along_axis(my_func, 1, votes)
-        predicted_inflated = np.repeat(predicted, groups[:,1] - groups[:,0])
-        predicted_inflated = torch.from_numpy(predicted_inflated).float().view((1,-1))
-        return predicted_inflated
+        howto100m_predicted = np.apply_along_axis(my_func, 1, votes)
+        # predicted_inflated = np.repeat(predicted, groups[:,1] - groups[:,0])
+        # predicted_inflated = torch.from_numpy(predicted_inflated).float().view((1,-1))
+        final_predicted = predicted_np.copy()
+        seg_idx = 0
+        for (orig_start, orig_end),seg_use100 in zip(original_groups, groups_using_100m):
+            if not seg_use100:
+                continue 
+            final_predicted[orig_start:orig_end] = howto100m_predicted[seg_idx]
+            seg_idx += 1
+        
+        final_predicted = torch.from_numpy(final_predicted).float().view((1,-1))
+        return final_predicted
     
     def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, \
         scheduler_step, scheduler_gamma):

@@ -47,6 +47,8 @@ parser.add_argument('--use_howto100m', type=int, default=1)
 parser.add_argument('--howto100m_text_dir', nargs="+", default=[])
 parser.add_argument('--howto100m_model_dir', type=str, default="") #/raid/xiaoyuz1/EPIC/howto100m/model/howto100m_pt_model.pth
 parser.add_argument('--howto100m_feature_dir', type=str, default="")
+parser.add_argument('--input_frames_per_feature', type=int, default=4)
+parser.add_argument('--howto100m_frames_per_feature', type=int, default=64)
 args = parser.parse_args()
 
 num_stages = args.num_stages
