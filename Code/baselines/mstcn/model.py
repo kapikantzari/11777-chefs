@@ -75,10 +75,9 @@ class Trainer:
         dim = args.features_dim
         visualize_every = args.visualize_every
         filter_background = args.filter_background
-        self.howto100m_text_filename = args.howto100m_text_filename
         self.device = device
 
-        if self.args.predict_with_howto100m:
+        if self.args.use_howto100m:
             net = Net(
                 video_dim=4096,
                 embd_dim=6144,
@@ -93,14 +92,15 @@ class Trainer:
 
             text_embeddings = []
             text_word_classes= []
-            for f in args.howto100m_text_dir:
-                with open(args.howto100m_text_dir, 'wb+') as f:
+            for fname in args.howto100m_text_dir:
+                with open(fname, 'rb') as f:
                     embed, embed_verb_class = pickle.load(f) 
                     text_embeddings.append(embed)
                     text_word_classes.append(embed_verb_class)
             
             self.text_embeddings = torch.cat(text_embeddings, dim=0)
             self.text_word_classes = np.hstack(text_word_classes)
+            print("Trainer: text_embeddings.shape", self.text_embeddings.shape, self.text_word_classes.shape)
         
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
@@ -133,7 +133,14 @@ class Trainer:
         for start,end in groups:
             if end - start < 1:
                 continue
-            feat_2d = np.amax(f_2D[int(np.floor(start*16/12)):int(np.ceil(end*16/12))],axis=0).reshape((1,-1))
+            # print(len(f_2D))
+            # print(int(np.floor(start*16/12)),int(np.ceil(end*16/12)))
+            start_2d = int(np.floor(start*16/12))
+            end_2d = int(np.ceil(end*16/12))
+            if start_2d >= len(f_2D) or start >= len(f_3D):
+                break
+            
+            feat_2d = np.amax(f_2D[start_2d:end_2d],axis=0).reshape((1,-1))
             feat_2ds.append(feat_2d)
             feat_3d = np.amax(f_3D[start:end],axis=0).reshape((1,-1))
             feat_3ds.append(feat_3d)
@@ -158,6 +165,7 @@ class Trainer:
             return max_class
 
         predicted = np.apply_along_axis(my_func, 0, votes)
+        print(predicted.shape)
         return predicted
     
     def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, \
@@ -232,11 +240,10 @@ class Trainer:
                         wandb_dict['train/edit'] = float(edit_dist) / batch_count
                         wandb_dict['train/F1'] = float(f1_score) / batch_count
 
-                    wandb.log(wandb_dict, step=cnt)
+                    #wandb.log(wandb_dict, step=cnt)
 
                 cnt += 1
                 
-
             scheduler.step()
             save_path = os.path.join(save_dir, '{}'.format(self.wandb_run_name))
             if not os.path.exists(save_path):
@@ -248,8 +255,8 @@ class Trainer:
             torch.save(self.model.state_dict(), model_path)
             torch.save(optimizer.state_dict(), optimizer_path)
 
-            wandb.save(model_path)
-            wandb.save(optimizer_path)
+            #wandb.save(model_path)
+            #wandb.save(optimizer_path)
             
             print("Training: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples), float(correct)/total))
 
@@ -329,7 +336,7 @@ class Trainer:
                 wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
                 wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
 
-            wandb.log(wandb_dict, step=cnt)
+            #wandb.log(wandb_dict, step=cnt)
             print("Validate: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total))
     
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):

@@ -87,7 +87,7 @@ class BatchGenerator(object):
             cleaned.append(vid)
 
         self.list_of_examples = cleaned
-        print("Number of samples: ", len(self.list_of_examples))
+        print("Number of samples post-check: ", len(self.list_of_examples))
 
     
     def next_batch(self, batch_size):

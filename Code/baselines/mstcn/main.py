@@ -14,8 +14,9 @@ import numpy as np
 import wandb
 
 vocab_subset = {'cooking': [0, 1, 2, 7, 9, 10, 13, 14, 15, 16, 18, 19, 21, 22, 23, 25, 26, 28, 34, 35, 36, 39, 42, 43,  45, 46, 47, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 63, 66, 69, 75, 76, 77, 80, 81, 82, 83, 84, 90, 92, 93, 95, 96], 'salad': [46, 7, 19, 1, 82, 10, 92]}
-wandb.init(project='mstcn_v2', entity='chefs')
-wandb_run_name = wandb.run.name
+# wandb.init(project='mstcn_v2', entity='chefs')
+# wandb_run_name = wandb.run.name
+wandb_run_name = "test"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True
@@ -45,6 +46,7 @@ parser.add_argument('--val_file_name', type=str, default='validation.txt')
 parser.add_argument('--use_howto100m', type=int, default=1)
 parser.add_argument('--howto100m_text_dir', nargs="+", default=[])
 parser.add_argument('--howto100m_model_dir', type=str, default="") #/raid/xiaoyuz1/EPIC/howto100m/model/howto100m_pt_model.pth
+parser.add_argument('--howto100m_feature_dir', type=str, default="")
 args = parser.parse_args()
 
 num_stages = args.num_stages
@@ -152,18 +154,18 @@ if not os.path.exists(model_dir):
 if not os.path.exists(results_dir):
     os.makedirs(results_dir)
 
-trainer = Trainer(args, wandb.run.name, num_classes, background_class_idx, device)
+trainer = Trainer(args, wandb_run_name, num_classes, background_class_idx, device)
 if args.action == "train":
     seed = 1538574472
     random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
-    batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
+    batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots, howto100_feature_path=args.howto100m_feature_dir)
     batch_gen.read_data(vid_list_file)
     batch_gen.check_example_exist()
 
-    val_batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots)
+    val_batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots, howto100_feature_path=args.howto100m_feature_dir)
     val_batch_gen.read_data(vid_list_file_tst)
     val_batch_gen.check_example_exist()
     
