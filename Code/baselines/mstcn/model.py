@@ -106,6 +106,7 @@ class Trainer:
             self.input_frames_per_feature = args.input_frames_per_feature
             self.howto100m_frames_per_feature = args.howto100m_frames_per_feature
             self.howto100m_ratio = self.howto100m_frames_per_feature /self.input_frames_per_feature
+            self.howto100m_use_context = args.howto100m_use_context
         
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
@@ -132,10 +133,12 @@ class Trainer:
         start_idx = np.append([0], switch)
         end_idx = np.append(switch, len(predicted_np))
         original_groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
-        groups_using_100m = (groups[:,1] - groups[:,0]) >= self.howto100m_ratio
+        groups_using_100m = (original_groups[:,1] - original_groups[:,0]) >= self.howto100m_ratio
         groups = original_groups[groups_using_100m]
         groups[:,0] = np.floor(groups[:,0] / self.howto100m_ratio)
         groups[:,1] = np.ceil(groups[:,1] / self.howto100m_ratio)
+        if len(groups) <= 0:
+            return torch.from_numpy(predicted_np).float().view((1,-1)) 
 
         start_2ds = np.floor(groups[:,0]*16/12).astype(int)
         assert np.all(start_2ds < len(f_2D))
@@ -156,6 +159,10 @@ class Trainer:
             feat_3d = F.normalize(torch.from_numpy(feat_3d).float(), dim=0)
             segment = torch.cat((feat_2d, feat_3d), 1)
             segments_video_features.append(segment)
+        
+        # if self.howto100m_use_context:
+        #     for video_idx, video in enumerate(segments_video_features):
+        #         video = video.cuda()
         
         video = torch.cat(segments_video_features, dim=0)
         video = video.cuda()
@@ -184,6 +191,12 @@ class Trainer:
         final_predicted = torch.from_numpy(final_predicted).float().view((1,-1))
         return final_predicted
     
+    def calculate_accuracy(self, predicted, batch_target, mask):
+        mask_bkg = batch_target != self.background_class_idx
+        num_correct = ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
+        num_correct_bkg = ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
+        return num_correct, num_correct_bkg
+
     def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, \
         scheduler_step, scheduler_gamma):
         device = self.device
@@ -198,6 +211,10 @@ class Trainer:
             epoch_loss = 0
             correct = 0
             correct_nobkg = 0
+            
+            correct_howto100m = 0
+            correct_howto100m_nobkg = 0
+            
             total = 0
             batch_count = 0
             f1_score = 0
@@ -230,19 +247,20 @@ class Trainer:
                 loss.backward()
                 optimizer.step()
 
-                # if self.filter_background:
-                #     mask_bkg = batch_target != self.background_class_idx
-                # else:
-                #     mask_bkg = batch_target >= 0
-                mask_bkg = batch_target != self.background_class_idx
-                _, predicted = torch.max(predictions[-1].data, 1)
+                # Calculate accuracy not using howto100m:
+                _, predicted_mstcn = torch.max(predictions[-1].data, 1)
+                num_correct, num_correct_bkg = self.calculate_accuracy(predicted_mstcn, batch_target, mask)
+                correct += num_correct
+                correct_nobkg += num_correct_bkg
+                
                 if self.args.use_howto100m:
-                    predicted = self.predict_howto100m(predicted, f_3D, f_2D)
+                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D)
                     assert predicted.shape[1] == batch_target.shape[1]
                     predicted = predicted.to(device)
-                correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
-                correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
-                
+                    num_correct100, num_correct_bkg100 = self.calculate_accuracy(predicted, batch_target, mask)
+                    correct_howto100m += num_correct100
+                    correct_howto100m_nobkg += num_correct_bkg100
+                    
                 total += torch.sum(mask[:, 0, :]).item()
                 if epoch >= num_epochs * 0.8:
                     results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
@@ -255,12 +273,15 @@ class Trainer:
                     wandb_dict = {'train/epoch_loss' : epoch_loss / batch_count, \
                         'train/acc' : float(correct)/total,
                         'train/acc_nobkg' : float(correct_nobkg)/total,
+                        'train/acc_howto100m' : float(correct_howto100m)/total,
+                        'train/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
                         }
                     if epoch >= num_epochs * 0.8:
                         wandb_dict['train/edit'] = float(edit_dist) / batch_count
                         wandb_dict['train/F1'] = float(f1_score) / batch_count
 
-                    wandb.log(wandb_dict, step=cnt)
+                    if self.args.enable_wandb:
+                        wandb.log(wandb_dict, step=cnt)
 
                 cnt += 1
                 
@@ -268,7 +289,7 @@ class Trainer:
             save_path = os.path.join(save_dir, '{}'.format(self.wandb_run_name))
             if not os.path.exists(save_path):
                 os.mkdir(save_path)
-            model_path = os.path.join(save_path, 'epoch-{}.model'.format(epoch+1))
+            model_path = os.path.join(save_path, 'epoch-{}.pth'.format(epoch+1))
             optimizer_path = os.path.join(save_path, 'epoch-{}.opt'.format(epoch+1))
             
             
@@ -277,8 +298,7 @@ class Trainer:
 
             #wandb.save(model_path)
             #wandb.save(optimizer_path)
-            
-            print("Training: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples), float(correct)/total))
+            print("Training: [epoch %d]: epoch loss = %f,   acc = %f,   howto100m_acc = %f" % (epoch + 1, epoch_loss / len(batch_gen.list_of_examples), float(correct)/total, float(correct_howto100m)/total))
 
     def evaluate(self, val_batch_gen, num_epochs, epoch, cnt, batch_size):
         device = self.device
@@ -287,6 +307,8 @@ class Trainer:
         with torch.no_grad():
             correct = 0
             correct_nobkg = 0
+            correct_howto100m = 0
+            correct_howto100m_nobkg = 0
             total = 0
             epoch_loss = 0
             f1_score = 0
@@ -311,16 +333,22 @@ class Trainer:
                     loss += 0.15*torch.mean(torch.clamp(self.mse(F.log_softmax(p[:, :, 1:], dim=1), F.log_softmax(p.detach()[:, :, :-1], dim=1)), min=0, max=16)*mask[:, :, 1:])
 
                 epoch_loss += loss.item()
-                mask_bkg = batch_target != self.background_class_idx
-                _, predicted = torch.max(predictions[-1].data, 1)
+                
+                # Calculate accuracy not using howto100m:
+                _, predicted_mstcn = torch.max(predictions[-1].data, 1)
+                num_correct, num_correct_bkg = self.calculate_accuracy(predicted_mstcn, batch_target, mask)
+                correct += num_correct
+                correct_nobkg += num_correct_bkg
+                
                 if self.args.use_howto100m:
-                    predicted = self.predict_howto100m(predicted, f_3D, f_2D)
+                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D)
                     assert predicted.shape[1] == batch_target.shape[1]
                     predicted = predicted.to(device)
-                correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
-                correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
+                    num_correct100, num_correct_bkg100 = self.calculate_accuracy(predicted, batch_target, mask)
+                    correct_howto100m += num_correct100
+                    correct_howto100m_nobkg += num_correct_bkg100
+                
                 total += torch.sum(mask[:, 0, :]).item()
-
                 torch.cuda.empty_cache()
                 if epoch >= num_epochs * 0.8:
                     results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
@@ -346,20 +374,23 @@ class Trainer:
                         fig_name =  val_batch_gen.fig
                         color_name = val_batch_gen.colors
                         cap = 'GT'
-                        visualize(cnt, batch_video_id, batch_target, ax_name, fig_name, color_name, cap)
+                        visualize(cnt, batch_video_id, batch_target, ax_name, fig_name, color_name, cap, enable_wandb=self.args.enable_wandb)
                     
-                    plot_table(cnt, batch_video_id, predicted, batch_target, val_batch_gen.actions_dict_rev)
+                    plot_table(cnt, batch_video_id, predicted, batch_target, val_batch_gen.actions_dict_rev, enable_wandb=self.args.enable_wandb)
 
             wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
                 'validate/acc' : float(correct)/total,
                 'validate/acc_nobkg' : float(correct_nobkg)/total,
+                'validate/acc_howto100m' : float(correct_howto100m)/total,
+                'validate/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
                 }
             if epoch >= num_epochs * 0.8:
                 wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
                 wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
 
-            wandb.log(wandb_dict, step=cnt)
-            print("Validate: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total))
+            if self.args.enable_wandb:
+                wandb.log(wandb_dict, step=cnt)
+            print("Validate: [epoch %d]: epoch loss = %f,   acc = %f,   howto100m_acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total, float(correct_howto100m)/total))
     
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         self.model.eval()

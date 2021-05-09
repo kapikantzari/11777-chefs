@@ -14,9 +14,6 @@ import numpy as np
 import wandb
 
 vocab_subset = {'cooking': [0, 1, 2, 7, 9, 10, 13, 14, 15, 16, 18, 19, 21, 22, 23, 25, 26, 28, 34, 35, 36, 39, 42, 43,  45, 46, 47, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 63, 66, 69, 75, 76, 77, 80, 81, 82, 83, 84, 90, 92, 93, 95, 96], 'salad': [46, 7, 19, 1, 82, 10, 92]}
-wandb.init(project='mstcn_howto100m_debug', entity='chefs')
-wandb_run_name = wandb.run.name
-# wandb_run_name = "test"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True
@@ -49,6 +46,8 @@ parser.add_argument('--howto100m_model_dir', type=str, default="") #/raid/xiaoyu
 parser.add_argument('--howto100m_feature_dir', type=str, default="")
 parser.add_argument('--input_frames_per_feature', type=int, default=4)
 parser.add_argument('--howto100m_frames_per_feature', type=int, default=64)
+parser.add_argument('--howto100m_use_context', type=int, default=0)
+parser.add_argument('--enable_wandb', type=int, default=0)
 args = parser.parse_args()
 
 num_stages = args.num_stages
@@ -67,21 +66,28 @@ num_subplots = num_epochs // visualize_every + 1
 train_file_name = args.train_file_name
 val_file_name = args.val_file_name
 
-config = wandb.config
-config.num_stages = num_stages
-config.num_layers = num_layers
-config.num_f_maps = num_f_maps
-config.features_dim = features_dim
-config.bz = bz
-config.lr = lr
-config.num_epochs = num_epochs
-config.sample_rate = sample_rate
-config.scheduler_step = scheduler_step
-config.scheduler_gamma = scheduler_gamma
-config.visualize_every = visualize_every
-config.filter_background = filter_background
-config.train_file_name = train_file_name
-config.val_file_name = val_file_name
+if args.enable_wandb:
+    wandb.init(project='mstcn_howto100m_debug', entity='chefs')
+    wandb_run_name = wandb.run.name
+else:   
+    wandb_run_name = "test"
+
+if args.enable_wandb:
+    config = wandb.config
+    config.num_stages = num_stages
+    config.num_layers = num_layers
+    config.num_f_maps = num_f_maps
+    config.features_dim = features_dim
+    config.bz = bz
+    config.lr = lr
+    config.num_epochs = num_epochs
+    config.sample_rate = sample_rate
+    config.scheduler_step = scheduler_step
+    config.scheduler_gamma = scheduler_gamma
+    config.visualize_every = visualize_every
+    config.filter_background = filter_background
+    config.train_file_name = train_file_name
+    config.val_file_name = val_file_name
 
 vid_list_file = os.path.join(args.root_dir, train_file_name)
 vid_list_file_tst = os.path.join(args.root_dir, val_file_name)

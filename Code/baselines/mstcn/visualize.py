@@ -35,7 +35,7 @@ def table_list(y, actions_dict_rev):
 
     return labels
 
-def plot_table(cnt, batch_video_id, y_pred, y_gt, actions_dict_rev):
+def plot_table(cnt, batch_video_id, y_pred, y_gt, actions_dict_rev, enable_wandb=False):
     alist_pred = table_list(y_pred, actions_dict_rev)
     alist_gt = table_list(y_gt, actions_dict_rev)
 
@@ -44,10 +44,10 @@ def plot_table(cnt, batch_video_id, y_pred, y_gt, actions_dict_rev):
     alist_gts = [alist_gt[i] if i < len(alist_gt) else '---' for i in range(l)]
     idx = np.arange(l)+1
     data = np.array([idx, alist_preds, alist_gts]).T
-    
-    wandb.log({"table/{}".format(batch_video_id): wandb.Table(data=data, columns=["Index", "Predicted", "GT"])}, step=cnt)
+    if enable_wandb:
+        wandb.log({"table/{}".format(batch_video_id): wandb.Table(data=data, columns=["Index", "Predicted", "GT"])}, step=cnt)
 
-def visualize(cnt, batch_video_id, y, ax, fig, colors, cap, filename=None):
+def visualize(cnt, batch_video_id, y, ax, fig, colors, cap, filename=None, enable_wandb=False):
     # y, y_hat are the ground truth and predicted labels of N frames of a video
     # filename: include some information about parameters
     y = y.cpu().numpy().reshape(-1)
@@ -58,6 +58,7 @@ def visualize(cnt, batch_video_id, y, ax, fig, colors, cap, filename=None):
         buf = io.BytesIO()
         fig.savefig(buf)
         buf.seek(0)
-        wandb.log({'image/{}'.format(batch_video_id): wandb.Image(PIL.Image.open(buf))}, step=cnt)
-        # wandb.log({'image/{}'.format(batch_video_id): plt}, step=cnt)
+        if enable_wandb:
+            wandb.log({'image/{}'.format(batch_video_id): wandb.Image(PIL.Image.open(buf))}, step=cnt)
+        # #wandb.log({'image/{}'.format(batch_video_id): plt}, step=cnt)
         plt.close()

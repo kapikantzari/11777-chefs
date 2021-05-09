@@ -28,6 +28,14 @@ def zero_pad_tensor(tensor, size):
         zero = np.zeros((size - len(tensor), we_dim), dtype=np.float32)
         return np.concatenate((tensor, zero), axis=0)
 
+pkl_train = pd.read_pickle(args.pkl_train)
+pkl_val = pd.read_pickle(args.pkl_val)
+all_narration = np.concatenate([pkl_train['narration'].to_numpy(), pkl_val['narration'].to_numpy()])
+all_verb_class = np.concatenate([pkl_train['verb_class'].to_numpy(), pkl_val['verb_class'].to_numpy()])
+
+all_narration = np.unique(all_narration)
+print("Number of all_narration: ", len(all_narration))
+
 word2vec_path = args.word2vec_path
 print('Loading word vectors: {}'.format(word2vec_path))
 we = KeyedVectors.load_word2vec_format(word2vec_path, binary=True)
@@ -46,12 +54,6 @@ print('done')
 #         s_cleaned = s.translate(str.maketrans("'][","   ")).strip()
 #         verb_list_d_rev[s_cleaned] = class_id
 #         verb_list.append(s_cleaned)
-
-
-pkl_train = pd.read_pickle(args.pkl_train)
-pkl_val = pd.read_pickle(args.pkl_val)
-all_narration = np.concatenate([pkl_train['narration'].to_numpy(), pkl_val['narration'].to_numpy()])
-all_verb_class = np.concatenate([pkl_train['verb_class'].to_numpy(), pkl_val['verb_class'].to_numpy()])
 
 words_feats = []
 for s in all_narration:

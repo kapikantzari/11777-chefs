@@ -72,8 +72,10 @@ class BatchGenerator(object):
             p_id = vid.split("_")[0]
 
             feature_filename = os.path.join(self.features_path, p_id, '{}.npy'.format(vid.split('.')[0]))
-            if not os.path.exists(feature_filename):
-                print("ERROR: {} does not exist".format(feature_filename))
+            f_3D_file = os.path.join(self.howto100_feature_path, '3D', p_id, '{}.npy'.format(vid.split('.')[0]))
+            f_2D_file = os.path.join(self.howto100_feature_path, '2D', p_id, '{}.npy'.format(vid.split('.')[0]))
+            if not os.path.exists(feature_filename) or not os.path.exists(f_3D_file) or not os.path.exists(f_2D_file):
+                print("ERROR: {} does not exist".format(vid))
                 continue
             
             gt_filename = os.path.join(self.gt_path, '{}.txt'.format(vid))
@@ -105,6 +107,7 @@ class BatchGenerator(object):
             f_2D = np.load(os.path.join(self.howto100_feature_path, '2D', p_id, '{}.npy'.format(vid.split('.')[0])))
             
             features = np.load(feature_filename)
+            features = features[:-1]
             features = features.T
             gt_filename = os.path.join(self.gt_path, '{}.txt'.format(vid))
             file_ptr = open(gt_filename, 'r')
