@@ -99,6 +99,7 @@ class Trainer:
                     text_word_classes.append(embed_verb_class)
             
             self.text_embeddings = torch.cat(text_embeddings, dim=0)
+            self.text_embeddings = self.text_embeddings.to(device)
             self.text_word_classes = np.hstack(text_word_classes)
             print("Trainer: text_embeddings.shape", self.text_embeddings.shape, self.text_word_classes.shape)
         
@@ -120,31 +121,28 @@ class Trainer:
 
         self.cur_subplots = 0
 
-    def predict_howto100m(self, predicted, f_2D, f_3D):
+    def predict_howto100m(self, predicted, f_3D, f_2D):
         predicted_np = predicted.detach().cpu().numpy().flatten()
         switch = np.where(predicted_np[1:] != predicted_np[:-1])[0]+1
         
         start_idx = np.append([0], switch)
         end_idx = np.append(switch, len(predicted_np))
         groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
+
+        start_2ds = np.floor(start_idx*16/12).astype(int)
+        assert np.all(start_2ds < len(f_2D))
+        groups = groups[start_2ds < len(f_2D)]
         
         feat_3ds = []
         feat_2ds = []
         for start,end in groups:
-            if end - start < 1:
-                continue
-            # print(len(f_2D))
-            # print(int(np.floor(start*16/12)),int(np.ceil(end*16/12)))
             start_2d = int(np.floor(start*16/12))
             end_2d = int(np.ceil(end*16/12))
-            if start_2d >= len(f_2D) or start >= len(f_3D):
-                break
-            
             feat_2d = np.amax(f_2D[start_2d:end_2d],axis=0).reshape((1,-1))
             feat_2ds.append(feat_2d)
             feat_3d = np.amax(f_3D[start:end],axis=0).reshape((1,-1))
             feat_3ds.append(feat_3d)
-        
+
         segments_video_features = []
         for feat_2d, feat_3d in zip(feat_2ds, feat_3ds):
             feat_2d = F.normalize(torch.from_numpy(feat_2d).float(), dim=0)
@@ -153,7 +151,7 @@ class Trainer:
             segments_video_features.append(segment)
         video = torch.cat(segments_video_features, dim=0)
         video = video.cuda()
-        video_feat = self.net.GU_video(video)
+        video_feat = self.howto100m_model.GU_video(video)
         sim_matrix = torch.matmul(video_feat, self.text_embeddings.t()) #row: each video | column: each 
         sim_matrix = sim_matrix.detach().cpu().numpy()
         top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:100]
@@ -164,9 +162,10 @@ class Trainer:
             max_class = unique_class[np.argmax(counts)]
             return max_class
 
-        predicted = np.apply_along_axis(my_func, 0, votes)
-        print(predicted.shape)
-        return predicted
+        predicted = np.apply_along_axis(my_func, 1, votes)
+        predicted_inflated = np.repeat(predicted, groups[:,1] - groups[:,0])
+        predicted_inflated = torch.from_numpy(predicted_inflated).float().view((1,-1))
+        return predicted_inflated
     
     def train(self, save_dir, batch_gen, val_batch_gen, num_epochs, batch_size, learning_rate, \
         scheduler_step, scheduler_gamma):
@@ -199,6 +198,8 @@ class Trainer:
                 mask = output_dict['mask'].to(device)
                 f_3D = output_dict['f_3D']
                 f_2D = output_dict['f_2D']
+
+                # print(batch_input.shape, f_2D.shape, f_3D.shape)
                 
                 optimizer.zero_grad()
                 predictions = self.model(batch_input, mask)
@@ -220,6 +221,8 @@ class Trainer:
                 _, predicted = torch.max(predictions[-1].data, 1)
                 if self.args.use_howto100m:
                     predicted = self.predict_howto100m(predicted, f_3D, f_2D)
+                    assert predicted.shape[1] == batch_target.shape[1]
+                    predicted = predicted.to(device)
                 correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
                 correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
                 
@@ -230,7 +233,7 @@ class Trainer:
                     edit_dist += results_dict['edit']
 
                 if cnt % self.val_every == 0:
-                    self.evaluate(val_batch_gen, num_epochs, epoch, cnt, device, batch_size)
+                    self.evaluate(val_batch_gen, num_epochs, epoch, cnt, batch_size)
 
                     wandb_dict = {'train/epoch_loss' : epoch_loss / batch_count, \
                         'train/acc' : float(correct)/total,
@@ -240,7 +243,7 @@ class Trainer:
                         wandb_dict['train/edit'] = float(edit_dist) / batch_count
                         wandb_dict['train/F1'] = float(f1_score) / batch_count
 
-                    #wandb.log(wandb_dict, step=cnt)
+                    wandb.log(wandb_dict, step=cnt)
 
                 cnt += 1
                 
@@ -295,6 +298,8 @@ class Trainer:
                 _, predicted = torch.max(predictions[-1].data, 1)
                 if self.args.use_howto100m:
                     predicted = self.predict_howto100m(predicted, f_3D, f_2D)
+                    assert predicted.shape[1] == batch_target.shape[1]
+                    predicted = predicted.to(device)
                 correct += ((predicted == batch_target).float()*mask[:, 0, :].squeeze(1)).sum().item()
                 correct_nobkg += ((predicted == batch_target).float()*mask[:, 0, :]*mask_bkg.squeeze(1)).sum().item()
                 total += torch.sum(mask[:, 0, :]).item()
@@ -336,7 +341,7 @@ class Trainer:
                 wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
                 wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
 
-            #wandb.log(wandb_dict, step=cnt)
+            wandb.log(wandb_dict, step=cnt)
             print("Validate: [epoch %d]: epoch loss = %f,   acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total))
     
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):

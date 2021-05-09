@@ -14,9 +14,9 @@ import numpy as np
 import wandb
 
 vocab_subset = {'cooking': [0, 1, 2, 7, 9, 10, 13, 14, 15, 16, 18, 19, 21, 22, 23, 25, 26, 28, 34, 35, 36, 39, 42, 43,  45, 46, 47, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 63, 66, 69, 75, 76, 77, 80, 81, 82, 83, 84, 90, 92, 93, 95, 96], 'salad': [46, 7, 19, 1, 82, 10, 92]}
-# wandb.init(project='mstcn_v2', entity='chefs')
-# wandb_run_name = wandb.run.name
-wandb_run_name = "test"
+wandb.init(project='mstcn_howto100m_debug', entity='chefs')
+wandb_run_name = wandb.run.name
+# wandb_run_name = "test"
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True

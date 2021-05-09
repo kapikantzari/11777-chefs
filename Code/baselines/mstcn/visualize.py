@@ -7,6 +7,7 @@ from PIL import Image
 import PIL
 
 def plot_color_bar(ax, y, colors, cap):
+    y = y.astype(int)
     ax.axis('off')
     x = [0]
     for i in range(len(y)-1):
