@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch import optim
 import copy
 import numpy as np
+from numpy.core.defchararray import add
 import wandb
 import pickle
 from eval import single_eval_scores
@@ -447,3 +448,63 @@ class Trainer:
                 f_ptr.write("### Frame level recognition: ###\n")
                 f_ptr.write(' '.join(recognition))
                 f_ptr.close()
+
+
+
+class Context_Predictor():
+
+    def __init__(
+            self,
+            # gt_path,
+            we,
+            we_dim=300,
+            max_words=20,
+            all_narrations, # array of all narrations
+            labels, # verb class of each narration in all_narrations
+            net, #howto100m
+            # seg_threshold=-1,
+    ):
+        # self.seg_threshold = seg_threshold
+        self.labels = labels
+        self.all_narrations = all_narrations
+        self.we = we
+        self.we_dim = we_dim
+        self.max_words = max_words
+        self.net = net
+
+    def _zero_pad_tensor(self, tensor, size):
+        if len(tensor) >= size:
+            return tensor[:size]
+        else:
+            zero = np.zeros((size - len(tensor), self.we_dim), dtype=np.float32)
+            return np.concatenate((tensor, zero), axis=0)
+
+    def _words_to_we(self, words):
+        words = [word for word in words if word in self.we.vocab]
+        if words:
+            we = self._zero_pad_tensor(self.we[words], self.max_words)
+            return th.from_numpy(we)
+        else:
+            return th.zeros(self.max_words, self.we_dim) 
+
+    def _tokenize_text(self, sentence):
+        w = re.findall(r"[\w']+", str(sentence))
+        return w    
+
+    # def _word_to_embed(self, word):
+    #     cap = self._words_to_we(self._tokenize_text(word)).cuda()
+    #     return self.net.GU_text(self.howto100m.text_pooling(cap))
+
+    def prediction_with_context(self, prev, video_feature):
+        all_text_features = []
+        for t in self.all_narrations:
+            all_text_features.append(self._words_to_we(self._tokenize_text(prev+' '+t)))
+        all_text_features = torch.from_numpy(np.array([all_text_features])).cuda()
+
+        sim_vector = self.net(video_feature, all_text_features)
+        # print(sim_vector.shape)
+        prediction_top10 = (-sim_vector).argsort(axis=0)[:10].reshape(-1,)
+        res = []
+        for i in prediction_top10:
+            res.append((self.all_text_features[i], self.labels[i]))
+        return res
