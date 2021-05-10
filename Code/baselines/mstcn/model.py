@@ -14,6 +14,7 @@ import os
 import torch
 import torch.nn.functional as F
 from model_howto100m import Net 
+import pandas as pd 
 
 loss_weight = [106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
        106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
@@ -126,15 +127,35 @@ class Trainer:
 
         self.cur_subplots = 0
 
-    def predict_howto100m(self, predicted, f_3D, f_2D):
-        predicted_np = predicted.detach().cpu().numpy().flatten()
-        switch = np.where(predicted_np[1:] != predicted_np[:-1])[0]+1
+    def print_target(self, batch_target):
+        batch_target_np = batch_target.detach().cpu().numpy().flatten()
+        switch = np.where(batch_target_np[1:] != batch_target_np[:-1])[0]+1
+        start_idx = np.append([0], switch)
+        print("Target: ", ' | '.join([str(clas) for clas in batch_target_np[start_idx]]))
+
+    
+    def find_chunks(self, series):
+        switch = np.where(series[1:] != series[:-1])[0]+1
+        start_idx = np.append([0], switch)
+        end_idx = np.append(switch, len(series))
         
+        return pd.unique(series[start_idx])
+    
+    def predict_howto100m(self, predicted, f_3D, f_2D, batch_target, print_pred=False):
+        predicted_np = predicted.detach().cpu().numpy().flatten()
+        batch_target_np = batch_target.detach().cpu().numpy().flatten()
+        switch = np.where(predicted_np[1:] != predicted_np[:-1])[0]+1
+
         start_idx = np.append([0], switch)
         end_idx = np.append(switch, len(predicted_np))
         original_groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
         groups_using_100m = (original_groups[:,1] - original_groups[:,0]) >= self.howto100m_ratio
         groups = original_groups[groups_using_100m]
+        if len(groups) > 1 and print_pred:
+            print("\n")
+            for start,end in groups:
+                unique_clas = self.find_chunks(batch_target_np[start:end])
+                print(unique_clas)
         groups[:,0] = np.floor(groups[:,0] / self.howto100m_ratio)
         groups[:,1] = np.ceil(groups[:,1] / self.howto100m_ratio)
         if len(groups) <= 0:
@@ -169,15 +190,18 @@ class Trainer:
         video_feat = self.howto100m_model.GU_video(video)
         sim_matrix = torch.matmul(video_feat, self.text_embeddings.t()) #row: each video | column: each 
         sim_matrix = sim_matrix.detach().cpu().numpy()
-        top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:100]
+        top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:10]
         votes = self.text_word_classes[top_100_phrases]
-
+        if len(groups) > 1 and print_pred:
+            print(votes)
         def my_func(x):
             unique_class, counts = np.unique(x, return_counts=True)
             max_class = unique_class[np.argmax(counts)]
             return max_class
 
         howto100m_predicted = np.apply_along_axis(my_func, 1, votes)
+        if len(groups) > 1 and print_pred:
+            print(howto100m_predicted)
         # predicted_inflated = np.repeat(predicted, groups[:,1] - groups[:,0])
         # predicted_inflated = torch.from_numpy(predicted_inflated).float().view((1,-1))
         final_predicted = predicted_np.copy()
@@ -233,7 +257,8 @@ class Trainer:
                 f_3D = output_dict['f_3D']
                 f_2D = output_dict['f_2D']
 
-                # print(batch_input.shape, f_2D.shape, f_3D.shape)
+                # print("\n")
+                # self.print_target(batch_target)
                 
                 optimizer.zero_grad()
                 predictions = self.model(batch_input, mask)
@@ -254,12 +279,14 @@ class Trainer:
                 correct_nobkg += num_correct_bkg
                 
                 if self.args.use_howto100m:
-                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D)
+                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D, batch_target, print_pred=cnt >= 3000)
                     assert predicted.shape[1] == batch_target.shape[1]
                     predicted = predicted.to(device)
                     num_correct100, num_correct_bkg100 = self.calculate_accuracy(predicted, batch_target, mask)
                     correct_howto100m += num_correct100
                     correct_howto100m_nobkg += num_correct_bkg100
+                else:
+                    predicted = predicted_mstcn
                     
                 total += torch.sum(mask[:, 0, :]).item()
                 if epoch >= num_epochs * 0.8:
@@ -341,12 +368,14 @@ class Trainer:
                 correct_nobkg += num_correct_bkg
                 
                 if self.args.use_howto100m:
-                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D)
+                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D, batch_target, print_pred=False)
                     assert predicted.shape[1] == batch_target.shape[1]
                     predicted = predicted.to(device)
                     num_correct100, num_correct_bkg100 = self.calculate_accuracy(predicted, batch_target, mask)
                     correct_howto100m += num_correct100
                     correct_howto100m_nobkg += num_correct_bkg100
+                else:
+                    predicted = predicted_mstcn
                 
                 total += torch.sum(mask[:, 0, :]).item()
                 torch.cuda.empty_cache()

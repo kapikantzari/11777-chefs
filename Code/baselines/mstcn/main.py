@@ -48,6 +48,7 @@ parser.add_argument('--input_frames_per_feature', type=int, default=4)
 parser.add_argument('--howto100m_frames_per_feature', type=int, default=64)
 parser.add_argument('--howto100m_use_context', type=int, default=0)
 parser.add_argument('--enable_wandb', type=int, default=0)
+parser.add_argument('--local_wandb_name', type=str, default="test")
 args = parser.parse_args()
 
 num_stages = args.num_stages
@@ -70,7 +71,7 @@ if args.enable_wandb:
     wandb.init(project='mstcn_howto100m_debug', entity='chefs')
     wandb_run_name = wandb.run.name
 else:   
-    wandb_run_name = "test"
+    wandb_run_name = args.local_wandb_name
 
 if args.enable_wandb:
     config = wandb.config
