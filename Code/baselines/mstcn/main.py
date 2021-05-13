@@ -1,5 +1,6 @@
 #!/usr/bin/python2.7
 
+import numpy as np
 import torch
 from model import Trainer
 from batch_gen import BatchGenerator
@@ -7,7 +8,7 @@ import os
 import argparse
 import random
 import pickle
-import numpy as np
+
 
 
 # Flexible integration for any Python script
@@ -19,16 +20,16 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.backends.cudnn.deterministic = True
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--action', default='train')
+parser.add_argument('--action', default='eval')
 # parser.add_argument('--dataset', default="epic_kitchen")
 # parser.add_argument('--split', default='1')
 
-parser.add_argument('--root_dir', help="root directory of all data and annotations")
+parser.add_argument('--root_dir', help="root directory of all data and annotations", default="../stuff")
 parser.add_argument('--background_name', default="background", help="what verb to call the background verb, default as background")
 
-parser.add_argument('--num_stages', type=int, default=4)
-parser.add_argument('--num_layers', type=int, default=10)
-parser.add_argument('--num_f_maps', type=int, default=64)
+parser.add_argument('--num_stages', type=int, default=5)
+parser.add_argument('--num_layers', type=int, default=15)
+parser.add_argument('--num_f_maps', type=int, default=128)
 parser.add_argument('--features_dim', type=int, default=1024)
 parser.add_argument('--batch_size', type=int, default=1)
 parser.add_argument('--num_epochs', type=int, default=50)
@@ -41,14 +42,20 @@ parser.add_argument('--filter_background', dest='filter_background', action='sto
 parser.add_argument('--train_file_name', type=str, default='train.txt')
 parser.add_argument('--val_file_name', type=str, default='validation.txt')
 parser.add_argument('--use_howto100m', type=int, default=1)
-parser.add_argument('--howto100m_text_dir', nargs="+", default=[])
-parser.add_argument('--howto100m_model_dir', type=str, default="") #/raid/xiaoyuz1/EPIC/howto100m/model/howto100m_pt_model.pth
-parser.add_argument('--howto100m_feature_dir', type=str, default="")
+parser.add_argument('--howto100m_text_dir', type=str, default="verb")
+# parser.add_argument('--howto100m_model', type=str, default="howto100m_cp.pth") #/raid/xiaoyuz1/EPIC/howto100m/model/howto100m_pt_model.pth
+parser.add_argument('--howto100m_feature_dir', type=str, default="../stuff/Features")
 parser.add_argument('--input_frames_per_feature', type=int, default=4)
 parser.add_argument('--howto100m_frames_per_feature', type=int, default=64)
 parser.add_argument('--howto100m_use_context', type=int, default=0)
 parser.add_argument('--enable_wandb', type=int, default=0)
 parser.add_argument('--local_wandb_name', type=str, default="test")
+parser.add_argument('--word2vec_cp', type=str, default="w2v_cp.bin")
+parser.add_argument('--howto100m_cp', type=str, default="howto100m_cp.pth")
+parser.add_argument('--mstcn_cp', type=str, default="easy-snowflake-82/epoch-20.pth")
+parser.add_argument('--nar_path', type=str, default="unique_narrations.npy")
+parser.add_argument('--verb_class_path', type=str, default="unique_narrations_verb_class.npy")
+parser.add_argument('--only_visualize', type=int, default=0)
 args = parser.parse_args()
 
 num_stages = args.num_stages
@@ -180,5 +187,24 @@ if args.action == "train":
     
     trainer.train(model_dir, batch_gen, val_batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, scheduler_step=scheduler_step, scheduler_gamma=scheduler_gamma)
 
-# if args.action == "predict":
-#     trainer.predict(model_dir, results_dir, features_path, vid_list_file_tst, num_epochs, actions_dict, device, sample_rate)
+if args.action == "eval":
+    # trainer.predict(model_dir, results_dir, features_path, vid_list_file_tst, num_epochs, actions_dict, device, sample_rate)
+
+    batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots, howto100_feature_path=args.howto100m_feature_dir)
+    batch_gen.read_data(vid_list_file)
+    batch_gen.check_example_exist()
+
+    val_batch_gen = BatchGenerator(num_classes, actions_dict, rrev_dict, gt_path, features_path, color_path, sample_rate, num_subplots, howto100_feature_path=args.howto100m_feature_dir)
+    val_batch_gen.read_data(vid_list_file_tst)
+    val_batch_gen.check_example_exist()
+    
+    
+    cp_path = os.path.join(args.root_dir, args.mstcn_cp)
+    print("loading MSTCN checkpoint {}".format(cp_path))
+    trainer.load_checkpoint(cp_path)
+    print("done")
+    
+    # trainer.train(model_dir, batch_gen, val_batch_gen, num_epochs=num_epochs, batch_size=bz, learning_rate=lr, scheduler_step=scheduler_step, scheduler_gamma=scheduler_gamma)
+    trainer.evaluate(val_batch_gen, num_epochs=0, epoch=1, cnt=1, batch_size=bz)
+#     trainer.evaluate(batch_gen, num_epochs=0, epoch=0, cnt=0, batch_size=bz)
+    

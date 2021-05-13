@@ -1,11 +1,11 @@
 #!/usr/bin/python2.7
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import optim
 import copy
-import numpy as np
 from numpy.core.defchararray import add
 import wandb
 import pickle
@@ -16,6 +16,8 @@ import torch
 import torch.nn.functional as F
 from model_howto100m import Net 
 import pandas as pd 
+from gensim.models.keyedvectors import KeyedVectors
+import re
 
 loss_weight = [106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
        106., 106., 106., 106., 106., 106., 106., 106., 106., 106., 106., \
@@ -80,6 +82,12 @@ class Trainer:
         self.device = device
 
         if self.args.use_howto100m:
+            nar_path = os.path.join(args.root_dir, args.nar_path)
+            vc_path = os.path.join(args.root_dir, args.verb_class_path)
+            all_narrations = np.load(nar_path)
+            labels = np.load(vc_path)
+            print("Number of all_narration: ", len(all_narrations))
+            
             net = Net(
                 video_dim=4096,
                 embd_dim=6144,
@@ -88,27 +96,28 @@ class Trainer:
                 max_words=20,
                 sentence_dim=-1,
             )
-            pretrain_path = os.path.join(args.howto100m_model_dir)
+            
+            pretrain_path = os.path.join(args.root_dir, args.howto100m_cp)
+            print('Loading howto100m: {}'.format(pretrain_path))
             net.load_checkpoint(pretrain_path)
             self.howto100m_model = net.to(device)
+            print('done')
 
-            text_embeddings = []
-            text_word_classes= []
-            for fname in args.howto100m_text_dir:
-                with open(fname, 'rb') as f:
-                    embed, embed_verb_class = pickle.load(f) 
-                    text_embeddings.append(embed)
-                    text_word_classes.append(embed_verb_class)
-            
-            self.text_embeddings = torch.cat(text_embeddings, dim=0)
-            self.text_embeddings = self.text_embeddings.to(device)
-            self.text_word_classes = np.hstack(text_word_classes)
-            print("Trainer: text_embeddings.shape", self.text_embeddings.shape, self.text_word_classes.shape)
+            self.howto100m_use_context = args.howto100m_use_context
+
+            word2vec_path = os.path.join(args.root_dir, args.word2vec_cp)
+            print('Loading word vectors: {}'.format(word2vec_path))
+            we = KeyedVectors.load_word2vec_format(word2vec_path, binary=True)
+            print('done')
 
             self.input_frames_per_feature = args.input_frames_per_feature
             self.howto100m_frames_per_feature = args.howto100m_frames_per_feature
             self.howto100m_ratio = self.howto100m_frames_per_feature /self.input_frames_per_feature
             self.howto100m_use_context = args.howto100m_use_context
+
+            
+
+            self.context_predictor = Context_Predictor(we, 300, 20, all_narrations, labels, self.howto100m_model)
         
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
@@ -175,32 +184,39 @@ class Trainer:
             feat_3d = np.amax(f_3D[start:end],axis=0).reshape((1,-1))
             feat_3ds.append(feat_3d)
 
-        segments_video_features = []
+        # segments_video_features = []
+        res = []
+        prev = ""
         for feat_2d, feat_3d in zip(feat_2ds, feat_3ds):
             feat_2d = F.normalize(torch.from_numpy(feat_2d).float(), dim=0)
             feat_3d = F.normalize(torch.from_numpy(feat_3d).float(), dim=0)
-            segment = torch.cat((feat_2d, feat_3d), 1)
-            segments_video_features.append(segment)
+            segment = torch.cat((feat_2d, feat_3d), 1).cuda()
+            # segments_video_features.append(segment)
+            prev, label = self.context_predictor.predict(prev, segment)
+            res.append(label)
         
         # if self.howto100m_use_context:
         #     for video_idx, video in enumerate(segments_video_features):
         #         video = video.cuda()
         
-        video = torch.cat(segments_video_features, dim=0)
-        video = video.cuda()
-        video_feat = self.howto100m_model.GU_video(video)
-        sim_matrix = torch.matmul(video_feat, self.text_embeddings.t()) #row: each video | column: each 
-        sim_matrix = sim_matrix.detach().cpu().numpy()
-        top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:10]
-        votes = self.text_word_classes[top_100_phrases]
-        if len(groups) > 1 and print_pred:
-            print(votes)
-        def my_func(x):
-            unique_class, counts = np.unique(x, return_counts=True)
-            max_class = unique_class[np.argmax(counts)]
-            return max_class
+        # video = torch.cat(segments_video_features, dim=0)
+        # video = video.cuda()
+        # video_feat = self.howto100m_model.GU_video(video)
+        # sim_matrix = torch.matmul(video_feat, self.text_embeddings.t()) #row: each video | column: each 
+        # sim_matrix = sim_matrix.detach().cpu().numpy()
+        # top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:10]
+        # votes = self.text_word_classes[top_100_phrases]
+        # if len(groups) > 1 and print_pred:
+        #     print(votes)
+        # def my_func(x):
+        #     unique_class, counts = np.unique(x, return_counts=True)
+        #     max_class = unique_class[np.argmax(counts)]
+        #     return max_class
 
-        howto100m_predicted = np.apply_along_axis(my_func, 1, votes)
+        # howto100m_predicted = np.apply_along_axis(my_func, 1, votes)
+
+        howto100m_predicted = np.array(res)
+
         if len(groups) > 1 and print_pred:
             print(howto100m_predicted)
         # predicted_inflated = np.repeat(predicted, groups[:,1] - groups[:,0])
@@ -288,7 +304,6 @@ class Trainer:
                     correct_howto100m_nobkg += num_correct_bkg100
                 else:
                     predicted = predicted_mstcn
-                    
                 total += torch.sum(mask[:, 0, :]).item()
                 if epoch >= num_epochs * 0.8:
                     results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
@@ -312,7 +327,7 @@ class Trainer:
                         wandb.log(wandb_dict, step=cnt)
 
                 cnt += 1
-                
+
             scheduler.step()
             save_path = os.path.join(save_dir, '{}'.format(self.wandb_run_name))
             if not os.path.exists(save_path):
@@ -346,13 +361,19 @@ class Trainer:
             while val_batch_gen.has_next():
                 self.model.to(device)
                 output_dict = val_batch_gen.next_batch(batch_size)
+                batch_video_ids = output_dict['batch']
+                batch_video_id = batch_video_ids[0]
+                # if (batch_video_id not in self.videos_to_visualize) and (self.args.only_visualize):
+                #     continue
+                
                 batch_input = output_dict['batch_input_tensor'].to(device)
                 batch_target = output_dict['batch_target_tensor'].to(device)
                 mask = output_dict['mask'].to(device)
                 f_3D = output_dict['f_3D']
                 f_2D = output_dict['f_2D']
-                batch_video_ids = output_dict['batch']
-
+                
+                
+              
                 predictions = self.model(batch_input, mask)
 
                 loss = 0
@@ -368,6 +389,7 @@ class Trainer:
                 correct += num_correct
                 correct_nobkg += num_correct_bkg
                 
+                # print("use howto100m!")
                 if self.args.use_howto100m:
                     predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D, batch_target, print_pred=False)
                     assert predicted.shape[1] == batch_target.shape[1]
@@ -377,6 +399,7 @@ class Trainer:
                     correct_howto100m_nobkg += num_correct_bkg100
                 else:
                     predicted = predicted_mstcn
+                # print("finish")
                 
                 total += torch.sum(mask[:, 0, :]).item()
                 torch.cuda.empty_cache()
@@ -388,7 +411,7 @@ class Trainer:
 
                 batch_video_id = batch_video_ids[0]
                 if batch_video_id in self.videos_to_visualize: 
-                    if (epoch+1) % self.visualize_every == 0:
+                    if ((epoch+1) % self.visualize_every == 0) or (num_epochs == 0):
                         
                         self.cur_subplots += 1
                         val_batch_gen.reset_fig(1)
@@ -407,20 +430,34 @@ class Trainer:
                         visualize(cnt, batch_video_id, batch_target, ax_name, fig_name, color_name, cap, enable_wandb=self.args.enable_wandb)
                     
                     plot_table(cnt, batch_video_id, predicted, batch_target, val_batch_gen.actions_dict_rev, enable_wandb=self.args.enable_wandb)
+            if num_epochs == 0 and epoch == 0:
+                wandb_dict = {'train/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
+                    'train/acc' : float(correct)/total,
+                    'train/acc_nobkg' : float(correct_nobkg)/total,
+                    'train/acc_howto100m' : float(correct_howto100m)/total,
+                    'train/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
+                    }
+                if epoch >= num_epochs * 0.8:
+                    wandb_dict['train/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
+                    wandb_dict['train/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
 
-            wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
-                'validate/acc' : float(correct)/total,
-                'validate/acc_nobkg' : float(correct_nobkg)/total,
-                'validate/acc_howto100m' : float(correct_howto100m)/total,
-                'validate/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
-                }
-            if epoch >= num_epochs * 0.8:
-                wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
-                wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
+                if self.args.enable_wandb:
+                    wandb.log(wandb_dict, step=cnt)
+                print("Training: [epoch %d]: epoch loss = %f,   acc = %f,   howto100m_acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total, float(correct_howto100m)/total))
+            else:
+                wandb_dict = {'validate/epoch_loss' : epoch_loss / len(val_batch_gen.list_of_examples), \
+                    'validate/acc' : float(correct)/total,
+                    'validate/acc_nobkg' : float(correct_nobkg)/total,
+                    'validate/acc_howto100m' : float(correct_howto100m)/total,
+                    'validate/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
+                    }
+                if epoch >= num_epochs * 0.8:
+                    wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
+                    wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
 
-            if self.args.enable_wandb:
-                wandb.log(wandb_dict, step=cnt)
-            print("Validate: [epoch %d]: epoch loss = %f,   acc = %f,   howto100m_acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total, float(correct_howto100m)/total))
+                if self.args.enable_wandb:
+                    wandb.log(wandb_dict, step=cnt)
+                print("Validate: [epoch %d]: epoch loss = %f,   acc = %f,   howto100m_acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total, float(correct_howto100m)/total))
     
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         self.model.eval()
@@ -449,17 +486,13 @@ class Trainer:
                 f_ptr.write(' '.join(recognition))
                 f_ptr.close()
 
+    def load_checkpoint(self, path):
+        self.model.load_state_dict(torch.load(path))
+
 
 
 class Context_Predictor():
-
-    def __init__(
-            self,
-            # gt_path,
-            we,
-            we_dim=300,
-            max_words=20,
-            all_narrations, # array of all narrations
+    def __init__(self, we, we_dim, max_words, all_narrations, # array of all narrations
             labels, # verb class of each narration in all_narrations
             net, #howto100m
             # seg_threshold=-1,
@@ -471,6 +504,11 @@ class Context_Predictor():
         self.we_dim = we_dim
         self.max_words = max_words
         self.net = net
+        
+#         all_text_features = []
+#         for t in self.all_narrations:
+#             all_text_features.append(self._words_to_we(self._tokenize_text(str(t))))
+#         self.all_text_features = torch.from_numpy(np.array(all_text_features, dtype=np.float32)).cuda()
 
     def _zero_pad_tensor(self, tensor, size):
         if len(tensor) >= size:
@@ -483,9 +521,11 @@ class Context_Predictor():
         words = [word for word in words if word in self.we.vocab]
         if words:
             we = self._zero_pad_tensor(self.we[words], self.max_words)
-            return th.from_numpy(we)
+#             return torch.from_numpy(we)
+            return we
         else:
-            return th.zeros(self.max_words, self.we_dim) 
+#             return torch.zeros(self.max_words, self.we_dim) 
+            return np.zeros((self.max_words, self.we_dim))
 
     def _tokenize_text(self, sentence):
         w = re.findall(r"[\w']+", str(sentence))
@@ -495,16 +535,28 @@ class Context_Predictor():
     #     cap = self._words_to_we(self._tokenize_text(word)).cuda()
     #     return self.net.GU_text(self.howto100m.text_pooling(cap))
 
-    def prediction_with_context(self, prev, video_feature):
+    def predict(self, prev, video_feature):
         all_text_features = []
         for t in self.all_narrations:
-            all_text_features.append(self._words_to_we(self._tokenize_text(prev+' '+t)))
-        all_text_features = torch.from_numpy(np.array([all_text_features])).cuda()
-
-        sim_vector = self.net(video_feature, all_text_features)
+            all_text_features.append(self._words_to_we(self._tokenize_text(prev+' '+str(t))))
+#             all_text_features.append(self._words_to_we(self._tokenize_text(str(t))))
+        all_text_features = torch.from_numpy(np.array(all_text_features, dtype=np.float32)).cuda()
+        total_len = len(all_text_features)
+        split = 2
+        split_len = total_len // split
+        sim_vector = None
+        for i in range(split):
+            start = i*split_len
+            end = total_len if (i+1==split) else ((i+1)*split_len)
+            tmp = self.net(video_feature, all_text_features[start:end])
+            if sim_vector == None:
+                sim_vector = tmp
+            else:
+                sim_vector = torch.cat((sim_vector, tmp))
+#         sim_vector = self.net(video_feature, all_text_features)
         # print(sim_vector.shape)
         prediction_top10 = (-sim_vector).argsort(axis=0)[:10].reshape(-1,)
-        res = []
-        for i in prediction_top10:
-            res.append((self.all_text_features[i], self.labels[i]))
-        return res
+        # res = []
+        # for i in prediction_top10:
+        #     res.append((self.all_narrations[i], self.labels[i]))
+        return self.all_narrations[prediction_top10[0]], self.labels[prediction_top10[0]]
