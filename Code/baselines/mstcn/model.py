@@ -117,7 +117,7 @@ class Trainer:
 
             
 
-            self.context_predictor = Context_Predictor(we, 300, 20, all_narrations, labels, self.howto100m_model)
+            self.context_predictor = Context_Predictor(we, 300, 20, all_narrations, labels, self.howto100m_model, self.args.howto100m_use_context)
         
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
@@ -151,7 +151,7 @@ class Trainer:
         
         return pd.unique(series[start_idx])
     
-    def predict_howto100m(self, predicted, f_3D, f_2D, batch_target, print_pred=False):
+    def predict_howto100m(self, predicted, bg_idx, f_3D, f_2D, batch_target, print_pred=False):
         predicted_np = predicted.detach().cpu().numpy().flatten()
         batch_target_np = batch_target.detach().cpu().numpy().flatten()
         switch = np.where(predicted_np[1:] != predicted_np[:-1])[0]+1
@@ -187,13 +187,17 @@ class Trainer:
         # segments_video_features = []
         res = []
         prev = ""
-        for feat_2d, feat_3d in zip(feat_2ds, feat_3ds):
-            feat_2d = F.normalize(torch.from_numpy(feat_2d).float(), dim=0)
-            feat_3d = F.normalize(torch.from_numpy(feat_3d).float(), dim=0)
-            segment = torch.cat((feat_2d, feat_3d), 1).cuda()
-            # segments_video_features.append(segment)
-            prev, label = self.context_predictor.predict(prev, segment)
-            res.append(label)
+        for i, (feat_2d, feat_3d) in enumerate(zip(feat_2ds, feat_3ds)):
+            mstcn_label = int(predicted[0][i])
+            if mstcn_label == bg_idx:
+                res.append(bg_idx)
+            else:
+                feat_2d = F.normalize(torch.from_numpy(feat_2d).float(), dim=0)
+                feat_3d = F.normalize(torch.from_numpy(feat_3d).float(), dim=0)
+                segment = torch.cat((feat_2d, feat_3d), 1).cuda()
+                # segments_video_features.append(segment)
+                prev, label = self.context_predictor.predict(prev, segment)
+                res.append(label)
         
         # if self.howto100m_use_context:
         #     for video_idx, video in enumerate(segments_video_features):
@@ -291,12 +295,13 @@ class Trainer:
 
                 # Calculate accuracy not using howto100m:
                 _, predicted_mstcn = torch.max(predictions[-1].data, 1)
+                
                 num_correct, num_correct_bkg = self.calculate_accuracy(predicted_mstcn, batch_target, mask)
                 correct += num_correct
                 correct_nobkg += num_correct_bkg
                 
                 if self.args.use_howto100m:
-                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D, batch_target, print_pred=cnt >= 3000)
+                    predicted = self.predict_howto100m(predicted_mstcn.clone(), self.background_class_idx, f_3D, f_2D, batch_target, print_pred=cnt >= 3000)
                     assert predicted.shape[1] == batch_target.shape[1]
                     predicted = predicted.to(device)
                     num_correct100, num_correct_bkg100 = self.calculate_accuracy(predicted, batch_target, mask)
@@ -346,6 +351,10 @@ class Trainer:
     def evaluate(self, val_batch_gen, num_epochs, epoch, cnt, batch_size):
         device = self.device
         self.model.eval()
+        if self.args.howto100m_use_context:
+            print("with context")
+        else:
+            print("no context")
 
         with torch.no_grad():
             correct = 0
@@ -356,6 +365,8 @@ class Trainer:
             epoch_loss = 0
             f1_score = 0
             edit_dist = 0
+            f1_score_howto100m = 0
+            edit_dist_howto100m = 0
             val_batch_gen.reset()
 
             while val_batch_gen.has_next():
@@ -385,13 +396,18 @@ class Trainer:
                 
                 # Calculate accuracy not using howto100m:
                 _, predicted_mstcn = torch.max(predictions[-1].data, 1)
+#                 print(predicted_mstcn.shape)
+#                 print(predicted_mstcn)
                 num_correct, num_correct_bkg = self.calculate_accuracy(predicted_mstcn, batch_target, mask)
                 correct += num_correct
                 correct_nobkg += num_correct_bkg
+                results_dict = single_eval_scores(batch_target, predicted_mstcn.to(device), bg_class = [self.num_classes-1])
+                f1_score += results_dict['F1@ 0.50']
+                edit_dist += results_dict['edit']
                 
                 # print("use howto100m!")
                 if self.args.use_howto100m:
-                    predicted = self.predict_howto100m(predicted_mstcn.clone(), f_3D, f_2D, batch_target, print_pred=False)
+                    predicted = self.predict_howto100m(predicted_mstcn.clone(), self.background_class_idx, f_3D, f_2D, batch_target, print_pred=False)
                     assert predicted.shape[1] == batch_target.shape[1]
                     predicted = predicted.to(device)
                     num_correct100, num_correct_bkg100 = self.calculate_accuracy(predicted, batch_target, mask)
@@ -404,9 +420,9 @@ class Trainer:
                 total += torch.sum(mask[:, 0, :]).item()
                 torch.cuda.empty_cache()
                 if epoch >= num_epochs * 0.8:
-                    results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
-                    f1_score += results_dict['F1@ 0.50']
-                    edit_dist += results_dict['edit']
+                    results_dict_howto100m = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
+                    f1_score_howto100m += results_dict_howto100m['F1@ 0.50']
+                    edit_dist_howto100m += results_dict_howto100m['edit']
 
 
                 batch_video_id = batch_video_ids[0]
@@ -454,10 +470,12 @@ class Trainer:
                 if epoch >= num_epochs * 0.8:
                     wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
                     wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
-
+                    wandb_dict['validate/edit_howto100m'] = float(edit_dist_howto100m) / len(val_batch_gen.list_of_examples)
+                    wandb_dict['validate/F1_howto100m'] = float(f1_score_howto100m) / len(val_batch_gen.list_of_examples)
                 if self.args.enable_wandb:
                     wandb.log(wandb_dict, step=cnt)
                 print("Validate: [epoch %d]: epoch loss = %f,   acc = %f,   howto100m_acc = %f" % (epoch + 1, epoch_loss / len(val_batch_gen.list_of_examples), float(correct)/total, float(correct_howto100m)/total))
+                print(wandb_dict)
     
     def predict(self, model_dir, results_dir, features_path, vid_list_file, epoch, actions_dict, device, sample_rate):
         self.model.eval()
@@ -496,6 +514,7 @@ class Context_Predictor():
             labels, # verb class of each narration in all_narrations
             net, #howto100m
             # seg_threshold=-1,
+            use_context,
     ):
         # self.seg_threshold = seg_threshold
         self.labels = labels
@@ -504,11 +523,12 @@ class Context_Predictor():
         self.we_dim = we_dim
         self.max_words = max_words
         self.net = net
-        
-#         all_text_features = []
-#         for t in self.all_narrations:
-#             all_text_features.append(self._words_to_we(self._tokenize_text(str(t))))
-#         self.all_text_features = torch.from_numpy(np.array(all_text_features, dtype=np.float32)).cuda()
+        self.use_context = use_context
+        if not use_context:
+            all_text_features = []
+            for t in self.all_narrations:
+                all_text_features.append(self._words_to_we(self._tokenize_text(str(t))))
+            self.all_text_features = torch.from_numpy(np.array(all_text_features, dtype=np.float32)).cuda()
 
     def _zero_pad_tensor(self, tensor, size):
         if len(tensor) >= size:
@@ -536,11 +556,15 @@ class Context_Predictor():
     #     return self.net.GU_text(self.howto100m.text_pooling(cap))
 
     def predict(self, prev, video_feature):
+        
         all_text_features = []
-        for t in self.all_narrations:
-            all_text_features.append(self._words_to_we(self._tokenize_text(prev+' '+str(t))))
-#             all_text_features.append(self._words_to_we(self._tokenize_text(str(t))))
-        all_text_features = torch.from_numpy(np.array(all_text_features, dtype=np.float32)).cuda()
+        if self.use_context:
+            for t in self.all_narrations:
+                all_text_features.append(self._words_to_we(self._tokenize_text(prev+' '+str(t))))
+    #             all_text_features.append(self._words_to_we(self._tokenize_text(str(t))))
+            all_text_features = torch.from_numpy(np.array(all_text_features, dtype=np.float32)).cuda()
+        else:
+            all_text_features = self.all_text_features
         total_len = len(all_text_features)
         split = 2
         split_len = total_len // split
