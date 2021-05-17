@@ -13,8 +13,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--chunk_idx', type=int)
 parser.add_argument('--chunk_size', type=int, default=10000)
 parser.add_argument('--word2vec_path', type=str, required=True)
-parser.add_argument('--pkl_train', type=str, required=True)
-parser.add_argument('--pkl_val', type=str, required=True)
+parser.add_argument('--all_narration_file', type=str, required=True)
+parser.add_argument('--all_verb_class_file', type=str, required=True)
 parser.add_argument('--howto100m_pretrained_path', type=str, required=True)
 parser.add_argument('--output_file_name', type=str, required=True)
 args = parser.parse_args()
@@ -28,12 +28,9 @@ def zero_pad_tensor(tensor, size):
         zero = np.zeros((size - len(tensor), we_dim), dtype=np.float32)
         return np.concatenate((tensor, zero), axis=0)
 
-pkl_train = pd.read_pickle(args.pkl_train)
-pkl_val = pd.read_pickle(args.pkl_val)
-all_narration = np.concatenate([pkl_train['narration'].to_numpy(), pkl_val['narration'].to_numpy()])
-all_verb_class = np.concatenate([pkl_train['verb_class'].to_numpy(), pkl_val['verb_class'].to_numpy()])
 
-all_narration = np.unique(all_narration)
+all_narration = np.load(args.all_narration_file)
+all_verb_class = np.load(args.all_narration_file)
 print("Number of all_narration: ", len(all_narration))
 
 word2vec_path = args.word2vec_path

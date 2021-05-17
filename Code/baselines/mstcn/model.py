@@ -110,6 +110,8 @@ class Trainer:
             self.howto100m_use_context = args.howto100m_use_context
         
         self.model = MultiStageModel(num_blocks, num_layers, num_f_maps, dim, num_classes)
+        if args.resume_from_ckpt_file != "":
+            self.model.load_state_dict(torch.load(args.resume_from_ckpt_file))
         self.loss_weight = torch.Tensor(loss_weight).to('cuda')
         self.ce = nn.CrossEntropyLoss(ignore_index=-100)
         self.mse = nn.MSELoss(reduction='none')
@@ -126,6 +128,7 @@ class Trainer:
         self.filter_background = filter_background
 
         self.cur_subplots = 0
+        self.edit_score_print_threshold = 30
 
     def print_target(self, batch_target):
         batch_target_np = batch_target.detach().cpu().numpy().flatten()
@@ -151,11 +154,11 @@ class Trainer:
         original_groups = np.hstack([start_idx.reshape(-1,1), end_idx.reshape(-1,1)])
         groups_using_100m = (original_groups[:,1] - original_groups[:,0]) >= self.howto100m_ratio
         groups = original_groups[groups_using_100m]
-        if len(groups) > 1 and print_pred:
-            print("\n")
-            for start,end in groups:
-                unique_clas = self.find_chunks(batch_target_np[start:end])
-                print(unique_clas)
+        # if len(groups) > 1 and print_pred:
+        #     # print("\n")
+        #     for start,end in groups:
+        #         unique_clas = self.find_chunks(batch_target_np[start:end])
+        #         # print(unique_clas)
         groups[:,0] = np.floor(groups[:,0] / self.howto100m_ratio)
         groups[:,1] = np.ceil(groups[:,1] / self.howto100m_ratio)
         if len(groups) <= 0:
@@ -190,20 +193,16 @@ class Trainer:
         video_feat = self.howto100m_model.GU_video(video)
         sim_matrix = torch.matmul(video_feat, self.text_embeddings.t()) #row: each video | column: each 
         sim_matrix = sim_matrix.detach().cpu().numpy()
-        top_100_phrases = np.argsort(sim_matrix, axis=1)[:,:10]
+        top_100_phrases = np.argsort(sim_matrix, axis=1)[:,-10:]
         votes = self.text_word_classes[top_100_phrases]
-        if len(groups) > 1 and print_pred:
-            print(votes)
+        # if len(groups) > 1 and print_pred:
+        #     print(votes)
         def my_func(x):
             unique_class, counts = np.unique(x, return_counts=True)
             max_class = unique_class[np.argmax(counts)]
             return max_class
 
         howto100m_predicted = np.apply_along_axis(my_func, 1, votes)
-        if len(groups) > 1 and print_pred:
-            print(howto100m_predicted)
-        # predicted_inflated = np.repeat(predicted, groups[:,1] - groups[:,0])
-        # predicted_inflated = torch.from_numpy(predicted_inflated).float().view((1,-1))
         final_predicted = predicted_np.copy()
         seg_idx = 0
         for (orig_start, orig_end),seg_use100 in zip(original_groups, groups_using_100m):
@@ -289,7 +288,7 @@ class Trainer:
                     predicted = predicted_mstcn
                     
                 total += torch.sum(mask[:, 0, :]).item()
-                if epoch >= num_epochs * 0.8:
+                if epoch >= self.edit_score_print_threshold:
                     results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
                     f1_score += results_dict['F1@ 0.50']
                     edit_dist += results_dict['edit']
@@ -303,7 +302,7 @@ class Trainer:
                         'train/acc_howto100m' : float(correct_howto100m)/total,
                         'train/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
                         }
-                    if epoch >= num_epochs * 0.8:
+                    if epoch >= self.edit_score_print_threshold:
                         wandb_dict['train/edit'] = float(edit_dist) / batch_count
                         wandb_dict['train/F1'] = float(f1_score) / batch_count
 
@@ -379,7 +378,7 @@ class Trainer:
                 
                 total += torch.sum(mask[:, 0, :]).item()
                 torch.cuda.empty_cache()
-                if epoch >= num_epochs * 0.8:
+                if epoch >= self.edit_score_print_threshold:
                     results_dict = single_eval_scores(batch_target, predicted, bg_class = [self.num_classes-1])
                     f1_score += results_dict['F1@ 0.50']
                     edit_dist += results_dict['edit']
@@ -413,7 +412,7 @@ class Trainer:
                 'validate/acc_howto100m' : float(correct_howto100m)/total,
                 'validate/acc_howto100m_nobkg' : float(correct_howto100m_nobkg)/total,
                 }
-            if epoch >= num_epochs * 0.8:
+            if epoch >= self.edit_score_print_threshold:
                 wandb_dict['validate/edit'] = float(edit_dist) / len(val_batch_gen.list_of_examples)
                 wandb_dict['validate/F1'] = float(f1_score) / len(val_batch_gen.list_of_examples)
 

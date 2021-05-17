@@ -49,6 +49,7 @@ parser.add_argument('--howto100m_frames_per_feature', type=int, default=64)
 parser.add_argument('--howto100m_use_context', type=int, default=0)
 parser.add_argument('--enable_wandb', type=int, default=0)
 parser.add_argument('--local_wandb_name', type=str, default="test")
+parser.add_argument('--resume_from_ckpt_file', type=str, default="")
 args = parser.parse_args()
 
 num_stages = args.num_stages
