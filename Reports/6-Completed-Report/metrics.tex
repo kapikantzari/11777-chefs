@@ -1,0 +1,16 @@
+%Frame-wise metrics is most commonly used in segmentation and include accuracy, precision, and recall. However, this group of metrics tends to be influenced more by actions with long duration than by those with short duration \cite{wang2020temporal}. Another problem is that it does not penalize for over-segmentation errors in the model \cite{wang2020temporal, 8099596}. Therefore, we also consider segmental edit distance, which is useful because it reflects out-of-order and over-segmentation errors \cite{ 8099596}. 
+
+We measure our performance based on segmental F1 score, edit score, and frame wise accuracy \cite{8099596}. For each predicted action segment, we calculate its IoU with respect to the corresponding ground truth. If the score is above a threshold $\tau$, then the prediction is considered as a true positive (TP) otherwise a false positive (FP). Over-segmentation is addressed since if more than one correct segments lie within a single true action, only one is labelled as TP and all others are FP.
+
+% We measure three metrics: frame-wise accuracy, segmental edit distance and segmental F1 score.
+
+% Frame-wise metrics is most commonly used in segmentation and include accuracy, precision, and recall. However, this group of metrics tends to be influenced more by actions with long duration than by those with short duration \cite{wang2020temporal}. Another problem is that it does not penalize for over-segmentation errors in the model \cite{wang2020temporal, 8099596}.
+% Therefore, we also consider segmental edit distance, which is useful because it reflects out-of-order and over-segmentation errors \cite{ 8099596}. 
+
+% \cite{8099596} also introduces segmental F1 score, which not only penalizes for over-segmentation but also avoids penalizing for minor temporal shifts between the prediction and the ground truth. It also has the advantage of depending on the number of actions instead of their duration. For each predicted action segment, we calculate its IoU with respect to the corresponding ground truth. If the score is above a threshold $\tau$, then the prediction is considered as a true positive (TP) otherwise a false positive (FP). Over-segmentation is addressed since if more than one correct segments lie within a single true action, only one is labelled as TP and all others are FP. Here we consider overlapping thresholds of 10\%, 25\% and 50\%, denoted by F1$@\{10,25,50\}$. 
+
+
+
+
+
+% We use four methods as our baseline models: both EDTCN \cite{8099596} and MSTCN++ \cite{8953830} use temporal convolution networks to capture long-range dependencies. DTGRM \cite{wang2020temporal} uses multi-level dilated temporal graphs with an auxiliary self-supervised task to help correct wrong temporal relation in videos

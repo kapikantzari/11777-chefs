@@ -1,0 +1,19 @@
+\subsection{Potential Experiment}
+
+\subsubsection{HowTo100M}
+
+Given that the pretrained model does not work well for video-text retrieval on EpicKitchen dataset, we investigate a couple aspects:
+\begin{itemize}
+    \item Our use of HowTo100M is different from its original use: the model wants to retrieve the corresponding caption for a given video segment, and the caption is usually a descriptive sentence that reflects the video content. The training loss also reflects that there is only one positive within a batch, namely video-text pair $(\mathbf{v}_i, \mathbf{c}_i)$ that share the same index $i$. This is problematic for us since we want all $\mathbf{c}_i$ and all $\mathbf{v}_j$ corresponding to the same action to be close together irrespective of their indices in the batch. 
+    
+    Therefore, we can try to train with triplet loss that is computed based on the action labels $l \in \{0,\dots,96\}$. In a given batch of size $N$, there is a total of $2N^3$ triplets. 
+    The first type of $(i,j,k)$ is $\mathbf{c}_i$, $\mathbf{v}_j$, $\mathbf{c}_k$, where given $\mathbf{v}_j$, $\mathbf{c}_i$ is the positive text, and $\mathbf{c}_k$ is the negative text.
+    The second type of $(i,j,k)$ is $\mathbf{c}_i$, $\mathbf{v}_j$, $\mathbf{v}_k$, where given $\mathbf{c}_i$, $\mathbf{v}_j$ is the positive video, and $\mathbf{v}_k$ is the negative video. 
+    We need to mask out pairs where 1) $l_i \neq l_j$ 2) $l_i = l_k$ 3) $i == j$.   
+    
+    \item One hypothesis is that $6144$ is too large of an embedding space for our limited text input. However, how limited is our text input compared to YouCook2? 
+    
+    \item By looking at the top-10 retrieved texts for a given video of YouCook2, which is also a cooking-based video dataset and whose domain is the closest to ours, we find that the captions are also a set of verbs and nouns, although they are much longer and comprise several actions. In comparison, our segment contains only one action and one pair of verb-noun in the phrase. 
+    
+    Therefore, another potential experiment is to combine several segments together so that we have a longer caption with multiple action verbs and nouns. In this way, we hope to replicate the YouCook2 results after finetuning.  
+\end{itemize}

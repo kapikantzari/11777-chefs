@@ -1,0 +1,97 @@
+% It is relatively difficult for MSTCN to start learning the class of each input feature early: at the beginning, it naturally tries to predict the most frequent verbs in the dataset because of the use of cross-entropy loss. 
+% Why Slow-Fast. 
+% Following the paper [slow-fast], which proposes a two stream approach, where the fast branch tries to capture motions in the segments and getting a general sense of how objects move in the scene,  
+% The intuition is that the objects in view are signature  
+
+% Experiments on baseline models have demonstrated that one major issue with the pre-existing action segmentation methods like MSTCN on EPIC-KITCHENS dataset is to correctly classify the actions of each segment since EPIC-KITCHENS has much more diverse action classes than other datasets \cite{5995444, 10.1145/2493432.2493482, 6909500} that the baselines have evaluated on. Therefore, our proposed method utilizes MSTCN as a backbone model assisted by region of interest visual feature extraction and improves classification with an extra video-text matching component.
+
+\subsubsection{Backbone Model}
+We use the original implementation of MSTCN in \newcite{8953830} as the backbone model. The backbone takes in features extracted by I3D, same as in \newcite{8953830}. Given the feature vectors $(\mathbf{x}_1,\dots,\mathbf{x}_M)$ of a video, the model outputs an initial segmentation $(\hat{\mathbf{y}}_1,\dots,\hat{\mathbf{y}}_M)$ where $M$ is the number of frames and $\hat{\mathbf{y}}_i$ is the action class label of the predicted verb of frame $i$. From the prediction, we can generate $N'$ segments and their corresponding start-end frame number $\{(s_i,e_i)\}_{i\in [1\dots N']}$, by treating consecutive frames that are predicted with the same class as in the same segment. 
+
+\begin{figure}[t]
+    \centering
+    \begin{tikzpicture}[scale=0.7]
+        \filldraw[fill=black!20!white, draw=black] (-4.5,0) rectangle (-2,0.4) node[pos=0.5] {\small Narration};
+        \filldraw[fill=black!20!white, draw=black] (0.5,0) rectangle (3.5,0.4) node[pos=0.5] {\small Segment};
+        \draw[->,-stealth,semithick,densely dashed] (0.625,-0.6) to (1.5,0);
+        \draw[->,-stealth,semithick] (2.25,-0.6) to (2,0);
+        \draw[->,-stealth,semithick,densely dashed] (3.625,-0.6) to (2.5,0);
+        \filldraw[fill=red!40!white, draw=black] (0,-0.6) rectangle (1.25,-1);
+        \filldraw[fill=cyan!40!white, draw=black] (1.25,-0.6) rectangle (3.25,-1) node[pos=0.5] {\small Prediction};
+        \filldraw[fill=blue!40!white, draw=black] (3.25,-0.6) rectangle (4,-1);
+        \node [trapezium, trapezium angle=75, minimum width=2cm, draw, semithick, text width=1.2cm, align=center, fill=magenta!50!black!20!white] at (-3.25,2) {\small Text network};
+        \node [trapezium, trapezium angle=75, minimum width=2cm, draw, semithick, text width=1.2cm, align=center, fill=red!40!yellow!20!white] at (2,2) {\small Video network};
+        \draw[->,-stealth,semithick] (-3.25,0.4) to (-3.25,1.3);
+        \draw[->,-stealth,semithick] (2,0.4) to (2,1.3);
+        \draw[fill=cyan!40!black!5!white,semithick] (-0.625,4.5) ellipse (2.2cm and 1.2cm) node[text width=1.5cm,align=center] {\small Joint Embedding};
+        \draw[semithick] (-0.85,3.6) circle (0.1cm);
+        \draw[semithick] (-0.4,3.6) circle (0.1cm);
+        \draw[->,-stealth,semithick] (-3.25,2.7) to (-0.9,3.55);
+        \draw[->,-stealth,semithick] (2,2.7) to (-0.35,3.55);
+    \end{tikzpicture}
+    \caption{Illustration of the video-text retrieval module that computes the similarity score for a given pair of narration and video segment.}
+    \label{fig:prediction-and-retrieval}
+\end{figure}
+
+\subsubsection{Video-Text Matching} \label{section:video-text-matching}
+Since misclassification a more prominent issue in the baseline experiments, our proposed solution utilizes an enriched, pretrained video-text embedding to improve the labeling. We first extracted frame-level and video-level features similarly as in \newcite{miech19howto100m}. 2D features are extracted with the ImageNet pre-trained Resnet-152 \cite{7780459} at the rate of about 1 FPS, and 3D features are extracted with the Kinetics \cite{8099985} pre-trained ResNeXt-101 16-frames model \cite{8578783} to obtain about 0.78 feature per second. We freeze the ResNet and ResNeXt-101 components for feature extraction and only finetune on the final projection functions $f$ and $g$, which are composed of linear layers and gated linear units and explained in details below. 
+
+Denote the 2D features as $(\mathbf{x}^{2D}_1,\dots,\mathbf{x}^{2D}_{M_{2D}})$ and the 3D features as $(\mathbf{x}^{3D}_1,\dots,\mathbf{x}^{3D}_{M_{3D}})$ where $\mathbf{x}^{2D}_i,\mathbf{x}^{3D}_i\in\mathbb{R}^{2048}$.
+Given pairs of start-end frame number $(s_i,e_i)_{i \in [1\dots N]}$, marking the start and end of a segment, we first find the set of 2D and 3D feature indices corresponding to segment $i$ as $(s_i^{2D})_{i=1}^N$ and $(s_i^{3D})_{i=1}^N$ respectively, where $N$ is the number of segments. In other words, all 2D features with indices in $s_i^{2D}$ and 3D features with indices in $s_i^{3D}$ describe the segment from the $s_i$-th frame to the $e_i$-th frame. Then we aggregate the features of one segment using temporal maxpooling and concatenate 2D and 3D features to form a single 4096-dimensional feature vector
+\begin{align*}
+    \mathbf{v}^{2D}&=maxpool(\{\mathbf{x}_j^{2D}\}_{j\in s_i^{2D}})\\
+    \mathbf{v}^{3D}&=maxpool(\{\mathbf{x}_j^{3D}\}_{j\in s_i^{3D}})\\
+    \mathbf{v}_i&=concat(\mathbf{v}^{2D},\mathbf{v}^{3D})
+\end{align*}
+Similar to \newcite{miech19howto100m}, we also use the GoogleNews pre-trained word2vec embedding model to obtain a word embedding $\mathbf{c}_i$ of the text input. 
+% each verb $i$ (96 $c_i$ if using actions for each action category, $977$ $c_i$ if differentiating among actions within the same action category). 
+We then transform $\mathbf{v}_i,\mathbf{c}_i$ using the learned projection function finetuned on EPIC-KITCHENS $f:\mathbb{R}^{2048}\to\mathbb{R}^d,g:\mathbb{R}^{2048}\to\mathbb{R}^d$ where $d$ is the dimension of the common video-text embedding space. Finally, we perform video-text matching between a segment $\mathbf{v}_i$ and every verb $\mathbf{c}_i$ by computing the cosine similarity score as
+\[s(\mathbf{v}_i,\mathbf{c}_j)=\frac{\langle f(\mathbf{v}_i),g(\mathbf{c}_j)\rangle}{\|f(\mathbf{v}_i)\|_2\|g(\mathbf{c}_j)\|_2}\]
+which is high when the action $\mathbf{c}_j$ is likely to take place in the segment represented by $\mathbf{v}_i$.
+
+In order to determine the action class of the $i$-th segment with visual feature $\mathbf{v}_i$, we calculate $s(\mathbf{v}_i,\mathbf{c}_j)$ for a set of $18003$ $\mathbf{c}_j$'s, which is the total number of possible narrations in the EPIC-KITCHENS dataset, and the word embeddings are pre-computed. We then used the action class of the $j^{*}$-th narration, where 
+$j^{*} = \max_{j \in [18003]} s(\mathbf{v}_i,\mathbf{c}_j)$, to be the class prediction of the $i$-th segment. Figure~\ref{fig:prediction-and-retrieval} shows how we utilizes the joint embedding to determine the action class of each segment.
+
+  
+
+\subsubsection{Loss Function}
+\paragraph{Backbone} We use a combination of cross-entropy classification loss
+\begin{align*}
+    \mathcal{L}_c&=\frac{1}{M}\sum_{t=1}^M-\log(\hat{\mathbf{y}}^*_{t,c})
+\end{align*}
+and truncated mean squared smoothing loss that aims to reduce over-segmentation errors as in \cite{8953830}
+\begin{align*}
+    \Delta_{t,c}&=|\log\hat{\mathbf{y}}^*_{t,c}-\log\hat{\mathbf{y}}^*_{t-1,c}|\\
+    \Tilde{\Delta}_{t,c}&=\begin{cases}\Delta_{t,c} &\text{if $\Delta_{t,c}\le\tau$}\\\tau &\text{otherwise}\end{cases}\\
+    \mathcal{L}_s&=\frac{1}{MK}\sum_{t,c}\Tilde{\Delta}^2_{t,c}
+ \end{align*}
+where $M$ is the number of frames, $K$ is the number of action classes, $\hat{\mathbf{y}}^*_{t,c}$ is the output probability of action class $c$ of frame $t$. We use $\tau=4,\lambda=0.15$ as in the original experiment. The final loss function is given as the sum of loss at each stage of temporal convolution
+\begin{align*}
+    \mathcal{L}_{stage}&=\mathcal{L}_c+\lambda\mathcal{L}_s\\
+    \mathcal{L}&=\sum_{stage}\mathcal{L}_{stage}
+\end{align*}
+
+\paragraph{Video-Text Retrieval} The joint embedding is trained separately using the max-margin ranking loss as in \cite{miech19howto100m}. The loss is given by
+\begin{align*}
+    \sum_{i\in\mathcal{B}}\sum_{j\in N(i)}\max(0,\delta&+s_{i,j}-s_{i,i})\\
+    &+\max(0,\delta+s_{j,i}-s_{i,i})
+\end{align*}
+where $\mathcal{B}$ is a mini-batch sample of segments-verb training pairs, $s$ is the similarity score matrix of all training pairs, $N(i)$ denotes the set of negative pairs for pair $i$ and $\delta$ is the margin. We fix $\delta=0.1$ as in the original experiment.
+
+\subsubsection{Novelty and Challenges}
+% While most existing action segmentation methods have achieved decent performance on smaller and simpler datasets, the performance decreases significantly on larger and more complex datasets like EPIC-KITCHENS. To our best knowledge, all the existing methods work purely with video input. 
+Our approach is the first attempt to solve the action segmentation task of a dataset as large and complex as EPIC-KITCHENS in the multimodal setting. 
+% In particular, we exploits the semantic meaning of the text annotations to improve performance.
+We aim to learn a visual-textual joint embedding where the embedding of a video segment is close to the embedding of the narration describing the segment.
+%Meanwhile, existing methods aim to learn better temporal relationships among frames that are close together or far away from each other. For example, MSTCN uses dilated convolution and MSTCN++ improves with two branches of dilated convolutions each with a different dilation factor; DTGRM contains layers of graphs with nodes spanning neighborhoods of different sizes. These models, by surveying frames across time and learning temporal relationships, aim to differentiate between frames from the same action versus those from different actions. 
+% The intuition behind our method is that an action verb, such as \textit{take}, represents a very generic idea corresponding to a large domain of visual features with different contexts as confounding factors. For example, the visual components of a frame that is labeled as take can vary from context to context. 
+% Therefore, our video-text retrieval module aims at making all video segments of \textit{take} cluster around the word \textit{take} in the joint embedding. Then it will eliminate the distractions from intraclass variation within the category \textit{take}.
+
+Without extensive training and fine-tuning, the video-text retrieval module gives comparable result on recall metrics, R$@\{1,5,10\}$, as in the original pretrained HowTo100M model \cite{miech19howto100m}. However, 
+using the joint embedding space for action segmentation is challenging because retrieving the correct text requires good initial segmentation from MS-TCN. If the output from MSTCN differs greatly from the ground truth segmentation, the result may be much less desirable. A potential solution to this issue may be to train MSTCN with better visual features to obtain a more stabilized and credible segmentation, which are discussed in Section~\ref{section:visual-feature-analysis}.
+Another challenge is that the provided narrations, which we treat as captions, are not full sentences and detailed descriptions of the video, since HowTo100M \cite{miech19howto100m} worked well with several short captions like ours concatenated together, we experiment with concatenating neighboring narrations to provide more context.
+
+% Another solution that we experiment with is to use a more meaningful annotation phrase in the form of \textit{(verb, noun)} pair in the video-text retrieval. This may impose further challenge, such as a heavier focus on clustering based on the objects rather than the actions since the objects are more easily detectable in the video. 
+% For example, if we have four segments corresponding to \textit{take apple}, \textit{take banana}, \textit{put-down apple}, \textit{put-down banana}, despite ideally we want \textit{take apple} and \textit{take banana} to be closer, it is possible that \textit{take apple} and \textit{put-down apple} segments are closer since the manipulated objects \textit{apple} and \textit{banana} are more . 
+% In that way, the video-image retrieval model will provide limited improvement on classification. 
+% The non-descriptive nature of the annotations makes it difficult to learn a joint embedding space that separates segments of different actions.

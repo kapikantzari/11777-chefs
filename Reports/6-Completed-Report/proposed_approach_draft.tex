@@ -1,0 +1,28 @@
+
+Experiment 
+
+
+
+
+
+
+
+Evaluated with the recall metric, R$@\{1,5,10\}$, the finetuned projection model gives comparable result as the original pretrained HowTo100M model on image-text retrieval of the MSR-VTT dataset. (if have time, refer to a table from here)\\
+
+We evaluated the video-text embedding of EPIC-KITCHEN dataset under the following two segmentation setting: ground truth segmentation and uniform segmentation. 
+
+Ground truth segmentation setting:
+- In this setting, we supplied the inputs to the model as aligned pairs of corresponding video segment and text annotation.
+- Goal is to observe how much does the underlying visual domain of the dataset actually correlate to the available textual domain of EPIC-KITCHEN. Results were on par with those shown by other datasets, indicating that there are some level of correlation between visual and textual information. 
+
+In the next setting, we build the embedding based on uniform segmentation of video. This setting most closely aligns the inputs to our baseline model, MSTCN. However, the issue with this setting is the lack of defined boundary for each segment. Unlike the ground truth setting, uniform segmentation does not cleanly segment each action. This results in either trimmed action segments or overflow of action segments to the next neighboring segment. We observe that the embedding representation is worse in the unaligned setting. This means that... (the correlation exists, but is hard to learn, since in unaligned setting, the model is not able to find the optimal embedding).
+
+We also performed an experiment on the following two settings of phrases: verb + noun versus verb only phrases... (etc)\\
+
+One issue that is especially potent in the EPIC-KITCHEN dataset is the imbalance in the representation of visual and textual data. While the visual data contains both rich spatial and temporal information, the short verb-noun phrases provide very limited context to build an equally-representative textual space. To account for this imbalance, we assist the video-text embedding by providing visual inputs that aligns with the part of speech of the phrase vocabulary. Since the caption are composed of verbs and nouns, we extract specific regions in the visual frames that represent actions and/or objects.\\
+
+Inspired by the SlowFast network, we want to incorporate region of interest proposals into the feature extraction procedure such that we extract features of specific objects and actions and discard additional context such as background since textual information lacks additional context. Instead of passing in the full-resolution frame into the SlowFast network, we pass in sub-parts of the frame as proposed by Region Of Interest (RoI) models, thereby extracting object-specific or action-specific visual features. The Fast pathway of the network consists of low frame rate and low temporal resolution. The slow pathway of the network consists of $\alpha$ higher temporal resolution than the Fast pathway. The Fast pathway focuses on extracting spatial information across a set of sparsely sampled frames. The Slow pathway focuses on the available temporal information in a high frame rate setting.
+
+** Talk about how to incorporate this idea into serving / improving the embedding **
+
+

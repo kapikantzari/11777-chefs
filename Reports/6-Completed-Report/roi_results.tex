@@ -1,0 +1,65 @@
+
+\begin{table*}[t]
+\begin{center}
+    \begin{minipage}[b]{1\textwidth}
+    \centering
+\begin{tabular}{lrrrr}
+\toprule
+  & verb-top-1-acc & verb-top-5-acc & noun-top-1-acc & noun-top-5-acc \\
+\midrule
+SlowFast (original) & 52.98 & 84.05 & 38.27 & 63.99 \\
+\midrule
+SlowAlign  & 52.26 & 83.84 & 38.42 & 63.59 \\
+FastAlign & 25.94 & 70.59 & 9.87 & 26.46 \\
+SlowAlign + Slow & 51.76 & 83.31 & 37.35 & 62.30 \\
+FastAlign + Fast & 52.03 & 83.53 & 37.85 & 62.70 \\
+\bottomrule
+\end{tabular}
+\caption{Results of applying RoiAlign at different places of the SlowFast network.}
+\label{table:roi-results}
+\end{minipage}
+\end{center}
+\end{table*}
+
+
+In addition to using text to improve action segmentation performance, we also experiment with ways to extract visual features that could give better performance than the original I3D features. Since text-retrieval componenet did not improve the MSTCN prediction, we experimented without the component. In order to extract better visual features, we decide to use the SlowFast network \cite{feichtenhofer2019slowfast} for feature extraction, because it contains two pathways: the Slow and the Fast pathway.
+% focuses on extracting temporal information across a set of densely sampled frames, while the Slow pathway focuses on representing spatial semantics with high channel capacity and low temporal rate. 
+Our intuition was that information on changes in the scene, captured by the Fast pathway operating on a set of densely sampled frames, and contents in the scene, encoded by the Slow pathway outputting activations with a large number of channels, are both important to recognizing the action and differentiating between neighboring actions. 
+
+We plan to use region of interest (RoI) proposals of the frames, which are fed into RoiAlign after the SlowFast ResNet backbone. Our motivation is that by excluding the distracting information in the context of the video, focusing on the manipulated objects that are near the hand regions will help with identifying the action, since the text information lacks context; moreover, we assume that changes in how the objects are handled indicate the action performed. 
+
+% \subsubsection{Region of Interest Visual Feature Extraction}
+
+% The SlowFast network \cite{feichtenhofer2019slowfast} consists of two streams of feature extractions: the Fast pathway focuses on extracting temporal information across a set of densely sampled frames, while the Slow pathway focuses on representing spatial semantics with high channel capacity and low temporal rate. Moreover, we want to incorporate region of interest (RoI) proposals into the feature extraction procedure such that we extract features of specific objects and actions and discard additional context such as background since textual information lacks such context. Instead of passing in the full-resolution frame into the SlowFast network, we pass in sub-parts of the frame as proposed by Region Of Interest (RoI) models, thereby extracting object-specific or action-specific visual features. 
+
+% Section 5 details results of our multi-modal approach to the action segmentation task on the EPIC-KITCHENS dataset. To this end, we are interested in analyzing how might changes to one modality affect this multi-modal approach. In an egocentric visual frame, an action often takes place near ones hand and acted upon the object of interest. Inspired by the available hand-object bounding box annotations in EPIC-KITCHENS, we want to see if attending to the hand and object regions assists in the action segmentation task.
+
+% \paragraph{Roi Alignment}
+% Our visual feature extractor backbone, SlowFast ~\cite{feichtenhofer2019slowfast}, consists of two pathways. The fast pathway extracts features at a lower temporal rate, capturing higher temporal resolution. The slow pathway consists of higher temporal rate and larger number of channels, indicating richer spatial representation of the frames. We hypothesize that attending to hand-object regions in either the spatial dimension, the temporal dimension, or both can assist in learning visual features that are more suitable for action segmentation tasks. To test this, we utilize the RoiAlignment component to extract areas of interest and extract such features at the output of the pathways in the SlowFast model. SlowFast consists of two unique pathways, we run experiments on all possible combinations of the pathways to evaluate its affect.
+In order to determine the quality of the features before passing into MS-TCN, we use performance on action-recognition, the original task described in \citet*{feichtenhofer2019slowfast} but performed on EPIC-KITCHENS segments, as an indicator. Table~\ref{table:roi-results} presents the noun and verb accuracy of different modifications made to the original SlowFast network. 
+We first tried to pass the activations from the Fast pathway before the prediction head into RoiAlign, since Fast pathway has much higher sampling rate; the results is shown in the \textit{FastAlign} row. Similarly, \textit{SlowAlign} corresponds to passing activations from the Slow pathway into RoiAlign. \textit{SlowAlign + Slow} shows results of preserving the activations from both pathways but adding an additional branch of output after performing RoiAlign on activations of the Slow pathway, similar idea for \textit{FastAlign + Fast}. 
+
+% \begin{table*}[t]
+% \begin{center}
+%     \begin{minipage}[b]{1\textwidth}
+%     \centering
+% \begin{tabular}{lrrrr}
+% \toprule
+%   & verb-top-1-acc & verb-top-5-acc & noun-top-1-acc & noun-top-5-acc \\
+% \midrule
+% SlowFast (original) & 52.98 & 84.05 & 38.27 & 63.99 \\
+% \midrule
+% SlowAlign  & 52.26 & 83.84 & 38.42 & 63.59 \\
+% FastAlign & 25.94 & 70.59 & 9.87 & 26.46 \\
+% SlowAlign + Slow & 51.76 & 83.31 & 37.35 & 62.30 \\
+% FastAlign + Fast & 52.03 & 83.53 & 37.85 & 62.70 \\
+% \bottomrule
+% \end{tabular}
+% \caption{Results of applying RoiAlign at different places of the SlowFast network.}
+% \label{table:roi-results}
+% \end{minipage}
+% \end{center}
+% \end{table*}
+
+Poor performance of \textit{SlowAlign} shows that the slow pathway, which contains rich spatial information due to its large channel size, needs full image information, and applying RoIAlign limits its representation significantly. Moreover, similar performances among the other model variations indices that RoiAlign does not provide better representation, and one reason could be that although context in images are not the actively manipulated objects, to determine an action like “open”, changes in the surrounding between frames carry useful information, such as changes in the position of an object relative to the background. 
+% We then feed the SlowFast features into MSTCN, but the performance does not improve; details are provided in Appendix. 

@@ -1,0 +1,21 @@
+We have three baseline models: FC, MS-TCN \cite{9186840}, and DTGRM \cite{wang2020temporal}. 
+
+%%%%%%%%%%%%% excluded opening on baseline section
+% both EDTCN \cite{8099596} and MS-TCN++ \cite{9186840} use temporal convolution networks to capture long-range dependencies. \newcite{8099623} proposed a hybrid usage of GRU-based RNN and HMM to refine action alignment. DTGRM \cite{wang2020temporal} uses multi-level dilated temporal graphs with an auxiliary self-supervised task to help correct wrong temporal relation in videos.
+
+\paragraph{FC}
+We implement a vanilla 2-layer fully connected neural network that performs frame-wise classification on the input video frames. The inputs are features of dimension 1024 extracted using pretrained I3D \cite{8099985}. 
+
+\paragraph{MS-TCN}
+MS-TCN \cite{8953830} is a multi-stage architecture using TCN. The first layer of a single-stage TCN (SS-TCN) adjusts inputs dimension, followed by several dilated 1D temporal convolution layers with dilation factor doubled at each layer. All layers have ReLU activation with the residual connection. MS-TCN stacks multiple SS-TCNs so that each takes initial prediction probabilities from the previous stage and refines it. The overall architecture is trained with the cross entropy classification loss and a truncated mean squared error over the frame-wise log probabilities that penalizes over-segmentation. 
+
+\paragraph{DTGRM}
+\newcite{wang2020temporal} proposed DTGRM which refines a predicted result given by the backbone model (e.g. I3D) iteratively. The model stacks $K$ dilated graph convolution layers to perform temporal reasoning across long timescales, where each layer updates the hidden representation of every input frame. To reduce over-segmentation error, an additional self-supervised task is introduced to simulate over-segmentation error by randomly exchanging part of input frames. Both the original and exchanged frame sequences are fed into the model as input, with the output being action class likelihood for two frame sequences as well as exchange likelihood for each frame. 
+% Since the model was trained on datasets with relatively shorter videos compared to EPIC-KITCHENS, we plan to trim the videos into overlapping clips of length 15 minutes with fixed fps for consistency.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% Tiff short version
+
+% Our main baseline model is MS-TCN \cite{9186840}, which uses temporal convolution networks to capture long-range dependencies.
+
+% \paragraph{MS-TCN}
+% MS-TCN \cite{8953830} is a multi-stage architecture using TCN. The first layer of a single-stage TCN (SS-TCN) adjusts inputs dimension, followed by several dilated 1D temporal convolution layers with dilation factor doubled at each layer. All layers have ReLU activation with the residual connection. MS-TCN stacks four SS-TCNs so that each takes initial prediction probabilities from the previous stage and refines it. The overall architecture is trained with the cross entropy classification loss and a truncated mean squared error over the frame-wise log probabilities that penalizes over-segmentation. 

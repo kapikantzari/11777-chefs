@@ -1,0 +1,13 @@
+From Tabel \ref{table:howto100m_label}, we see that using video-text matching to predict the action class of a given segment outputted by MS-TCN gives worse performance. By comparing the results in Table~\ref{table:howto100m_seg_threshold} and Table~\ref{table:howto100m_visual_seg_threshold}, we see that although enhancing the text input with context (\textit{Narration+Context}) boosts the matching performance considerably, maxpooling across frames of different actions ($l_v >1$) worsen the performance, comparing to \textit{Narration+Context}. 
+Moreover, we have observed earlier matching on longer segments, $l_s \geq 3$, performs better, but this behavior is not consistent when $l_v > 1$, since from Table ~\ref{table:howto100m_visual_seg_threshold}, when $l_v=3,l_s=3$, the median rank is much higher than $l_v=3,l_s=1$. The learnt joint-embedding is very brittle when it comes to long video segments containing multiple actions. The high performance of \textit{Narration+Context} suggests that although text input assists in identifying the action, the quality of the visual feature is equally important in ensuring the correct retrieval. 
+
+Another issue comes from inferring the action class after video-text matching is done. We only know that the ground-truth paired narration is among the top-matching narrations, and majority-voting among top-matching narrations does not produce consistently the correct narration, which hurts performance.
+
+% \subsubsection{Video length}
+% Variation of video length for EPIC-KITCHENS dataset is much higher than that of other datasets. The maximum video length is more than 1 hour while average is only 9 minute. To determine how video length affects performance of models, we divided the whole dataset into long videos that are longer than 10 minutes and short videos that are shorter than 10 minutes.  
+
+% \subsubsection{Vocabulary size}
+% EPIC-KITCHENS contains a total of 97 verb classes, which is much more than that of 50Salads and Breakfast, which contain 17 and 48 verb classes respectively. To see if richer verb class will affect the performance of the baseline models that are originally proposed for 50Salads and Breakfast, we select a subset from 97 verb classes containing 54 verb classes with higher correlation to cooking. The remaining verb classes are labeled as background. 
+% % The training and testing result on the subset is shown in Table \ref{}.
+
+% % TODO: include table/graph
